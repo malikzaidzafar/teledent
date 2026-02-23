@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import engine, Base
-from app.routers import patients, auth
+from app.routers import patients, auth , admin
 
 Base.metadata.create_all(bind=engine)
 
@@ -12,6 +12,7 @@ app = FastAPI(
 
 app.include_router(patients.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 @app.get("/")
 def root():
@@ -20,10 +21,11 @@ def root():
         "docs": "/docs",
         "endpoints": [
             "/patients/register",
-            "/patients/get_all_patients",
-            "/patients/deletepatient/{patient_id}",
+            "/admin/get_all_patients",
+            "/admin/deletepatient/{patient_id}",
             "/auth/login",
             "/auth/me"
+            "/admin/patients"
         ]
     }
 

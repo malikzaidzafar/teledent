@@ -11,14 +11,12 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Password verify karo bcrypt se"""
     return bcrypt.checkpw(
         plain_password.encode('utf-8'),
         hashed_password.encode('utf-8')
     )
 
 def get_password_hash(password: str) -> str:
-    """Password hash karo bcrypt se"""
     password_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
@@ -36,3 +34,4 @@ def verify_token(token: str):
         return payload
     except:
         return None
+    
