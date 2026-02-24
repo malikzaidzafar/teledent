@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException , status 
 from sqlalchemy.orm import Session
 from typing import List
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from app.models.patient import Patient
 from app.models.admin import Admin
 from app.database import get_db
@@ -11,7 +11,7 @@ from app.schemas.patients import PatientResponse
 
 router = APIRouter(prefix="/admin" , tags=["Admin"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login/form", scheme_name="AdminOAuth2")
 
 def get_current_admin(
     token: str = Depends(oauth2_scheme),  
@@ -56,6 +56,16 @@ def login_admin(login_data : AdminLogin , db : Session = Depends(get_db)):
         "access_token" : access_token,
         "token_type": "bearer"
     }
+
+@router.post("/login/form")
+def login_admin_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    admin = db.query(Admin).filter(Admin.username == form_data.username).one_or_none()
+    if not admin:
+        raise HTTPException(status_code=401, detail="incorrect username or password")
+    if not verify_password(form_data.password, admin.password):
+        raise HTTPException(status_code=401, detail="incorrect username or password")
+    access_token = create_access_token(data={"sub": admin.username})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/get_all_patients", response_model=List[PatientResponse])
 def read_patients(
@@ -108,25 +118,3 @@ def get_patient_images(
     return {"patient_id": patient_id, "images": images}
 
 
-
-@router.get("/patients/{patient_id}/reports")
-def get_patient_reports(
-    patient_id: int,
-    db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
-):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    
-    reports = []
-    for report in patient.report_history or []:
-        reports.append({
-            "report_id": report["id"],
-            "prediction": report["prediction"],
-            "confidence": report["confidence"],
-            "risk_level": report["risk_level"],
-            "generated_at": report["generated_at"]
-        })
-    
-    return {"patient_id": patient_id, "reports": reports}
