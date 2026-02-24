@@ -25,7 +25,6 @@ class ExplanationService:
         
         confidence_pct = round(confidence * 100, 1)
         
-        # Get top 3 findings
         sorted_findings = sorted(
             all_probabilities.items(), 
             key=lambda x: x[1], 
@@ -42,7 +41,6 @@ class ExplanationService:
             for k, v in all_probabilities.items()
         ])
         
-        # Risk level
         if confidence > 0.8:
             risk = "high"
             urgency = "See a dentist within a week"
@@ -53,11 +51,9 @@ class ExplanationService:
             risk = "low"
             urgency = "Monitor and discuss at next regular checkup"
         
-        # If no LLM, use template
         if not self.llm:
             return self._get_template_explanation(prediction, confidence_pct, risk, urgency)
         
-        # Generate with Gemini
         try:
             prompt = f"""
 You are a dental AI assistant explaining analysis results to a patient.
@@ -73,7 +69,7 @@ Provide a helpful, empathetic explanation including:
 3. Recommended next steps (as bullet points)
 4. When to see a dentist
 
-Keep it clear, educational, and not alarming.
+Keep it clear and concise.
 """
             
             response = self.llm.invoke(prompt)
