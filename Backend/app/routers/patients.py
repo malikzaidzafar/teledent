@@ -2,20 +2,20 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.patient import Patient, PatientImage, ImageAnalysis, PatientReport
-from app.schemas.patients import (
+from Backend.app.database import get_db
+from Backend.app.models.patient import Patient, PatientImage, ImageAnalysis, PatientReport
+from Backend.app.schemas.patients import (
     ImagesListResponse, LoginRequest, PatientCreate, PatientResponse, 
     Token, UploadImageWithAnalysisResponse
 )
-from app.utils.utils import create_access_token, verify_password, verify_token
+from Backend.app.utils.utils import create_access_token, verify_password, verify_token
 import os
 import shutil
 import uuid
 from datetime import datetime
-from app.services.vision_service import DentalVisionService
-from app.services.explanation_service import ExplanationService
-from app.services.pdf_service import PDFReportService
+from Backend.app.services.vision_service import DentalVisionService
+from Backend.app.services.explanation_service import ExplanationService
+from Backend.app.services.pdf_service import PDFReportService
 
 
 explanation_service = ExplanationService()

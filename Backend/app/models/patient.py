@@ -2,8 +2,8 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Foreig
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.database import Base
-from app.utils.utils import get_password_hash, verify_password
+from Backend.app.database import Base
+from Backend.app.utils.utils import get_password_hash, verify_password
 
 
 class Patient(Base):

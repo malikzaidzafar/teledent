@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException , status
 from sqlalchemy.orm import Session
 from typing import List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from app.models.patient import Patient
-from app.models.admin import Admin
-from app.database import get_db
-from app.schemas.admin import AdminLogin
-from app.utils.utils import create_access_token, verify_password , verify_token
-from app.schemas.patients import PatientResponse
+from Backend.app.models.patient import Patient
+from Backend.app.models.admin import Admin
+from Backend.app.database import get_db
+from Backend.app.schemas.admin import AdminLogin
+from Backend.app.utils.utils import create_access_token, verify_password , verify_token
+from Backend.app.schemas.patients import PatientResponse
 
 router = APIRouter(prefix="/admin" , tags=["Admin"])
 

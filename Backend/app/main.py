@@ -1,6 +1,7 @@
+from Backend.app.routers import admin
 from fastapi import FastAPI
-from app.database import engine, Base
-from app.routers import patients , admin
+from Backend.app.database import engine, Base
+from Backend.app.routers import patients
 
 Base.metadata.create_all(bind=engine)
 
