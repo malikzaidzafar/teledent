@@ -1,20 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException , status 
+from fastapi import APIRouter, Depends, HTTPException , status
 from sqlalchemy.orm import Session
 from typing import List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from Backend.app.models.patient import Patient
-from Backend.app.models.admin import Admin
-from Backend.app.database import get_db
-from Backend.app.schemas.admin import AdminLogin
-from Backend.app.utils.utils import create_access_token, verify_password , verify_token
-from Backend.app.schemas.patients import PatientResponse
+from app.models.patient import Patient
+from app.models.admin import Admin
+from app.database import get_db
+from app.schemas.admin import AdminLogin
+from app.utils.utils import create_access_token, verify_password , verify_token
+from app.schemas.patients import PatientResponse
 
 router = APIRouter(prefix="/admin" , tags=["Admin"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login/form", scheme_name="AdminOAuth2")
 
 def get_current_admin(
-    token: str = Depends(oauth2_scheme),  
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
     payload = verify_token(token)
@@ -23,16 +23,16 @@ def get_current_admin(
             status_code=401,
             detail="Invalid token"
         )
-    
+
     username = payload.get("sub")
     admin = db.query(Admin).filter(Admin.username == username).first()
-    
+
     if not admin:
         raise HTTPException(
             status_code=401,
             detail="Admin not found"
         )
-    
+
     return admin
 
 @router.post("/login")
@@ -83,7 +83,7 @@ def delete_patient(
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin)
 ):
-    
+
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if patient is None:
         raise HTTPException(
@@ -105,16 +105,16 @@ def get_patient_images(
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    
+
     images = []
     for img in patient.image_history or []:
         images.append({
             "id": img["id"],
             "original_name": img["original_name"],
             "uploaded_at": img["uploaded_at"],
-            "url": f"/patients/images/{img['id']}"  
+            "url": f"/patients/images/{img['id']}"
         })
-    
+
     return {"patient_id": patient_id, "images": images}
 
 

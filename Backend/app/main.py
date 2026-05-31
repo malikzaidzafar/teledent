@@ -1,32 +1,61 @@
-from Backend.app.routers import admin
+"""
+main.py — FastAPI app factory. Registers routers, exception handlers, middleware.
+"""
 from fastapi import FastAPI
-from Backend.app.database import engine, Base
-from Backend.app.routers import patients
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 
+from app.config import settings
+from app.database import Base, engine
+import app.models  # noqa: F401 — registers all ORM models with metadata
+from app.core.exceptions import (
+    AppException, app_exception_handler,
+    validation_exception_handler, generic_exception_handler,
+)
+from app.routers import auth, patients, scans, reports, appointments, video, files, dentists, admin_stats, messages
+
+# Create tables (replace with Alembic migrations in production)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="FastAPI PostgreSQL Demo",
-    description="Learning FastAPI with proper structure",
-    version="1.0.0"
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+# --- CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", settings.FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Exception handlers ---
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+# --- Routers ---
+app.include_router(auth.router)
 app.include_router(patients.router)
-app.include_router(admin.router)
+app.include_router(scans.router)
+app.include_router(reports.router)
+app.include_router(appointments.router)
+app.include_router(video.router)
+app.include_router(files.router)
+app.include_router(dentists.router)
+app.include_router(admin_stats.router)
+app.include_router(messages.router)
 
-@app.get("/")
+
+@app.get("/", tags=["Health"])
 def root():
-    return {
-        "message": "Welcome to FastAPI",
-        "docs": "/docs",
-        "endpoints": [
-            "/patients/register",
-            "/admin/get_all_patients",
-            "/admin/deletepatient/{patient_id}",
-            "/admin/patients"
-        ]
-    }
+    return {"service": settings.APP_NAME, "version": settings.APP_VERSION, "docs": "/docs"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy", "database": "connected"}
+
+@app.get("/health", tags=["Health"])
+def health():
+    return {"status": "ok"}

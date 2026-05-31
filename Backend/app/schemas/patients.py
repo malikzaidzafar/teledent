@@ -13,7 +13,7 @@ class PatientResponse(BaseModel):
     username: str
     is_active: bool
     created_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -26,7 +26,7 @@ class ImageAnalysisSchema(BaseModel):
     analyzed_at: datetime
     explanation: Dict[str, Any]
     pdf_path: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -36,7 +36,7 @@ class PatientImageSchema(BaseModel):
     file_size: int
     uploaded_at: datetime
     analysis: Optional[ImageAnalysisSchema] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -50,7 +50,7 @@ class PatientReportSchema(BaseModel):
     risk_level: str
     generated_at: datetime
     analysis_id: str
-    
+
     class Config:
         from_attributes = True
 
@@ -71,19 +71,19 @@ class UploadImageResponse(BaseModel):
     image_id: str
     filename: str
     uploaded_at: str
-    
+
     class Config:
         from_attributes = True
 
 class ImagesListResponse(BaseModel):
     images: List[Dict[str, Any]]
-    
+
     class Config:
         from_attributes = True
 
 class ReportsListResponse(BaseModel):
     reports: List[Dict[str, Any]]
-    
+
     class Config:
         from_attributes = True
 
@@ -118,6 +118,6 @@ class UploadImageWithAnalysisResponse(BaseModel):
     success: bool
     message: str
     data: Dict[str, Any]
-    
+
     class Config:
         from_attributes = True

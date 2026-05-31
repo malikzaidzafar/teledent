@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ExplanationService:
     def __init__(self):
-        api_key = os.getenv("gemini")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logger.warning("Gemini API key not found")
             self.llm = None
@@ -19,28 +19,28 @@ class ExplanationService:
                 temperature=0.3,
                 convert_system_message_to_human=True
             )
-    
+
     def generate_explanation(self, prediction: str, confidence: float, all_probabilities: dict):
         """Generate AI explanation using Gemini"""
-        
+
         confidence_pct = round(confidence * 100, 1)
-        
+
         sorted_findings = sorted(
-            all_probabilities.items(), 
-            key=lambda x: x[1], 
+            all_probabilities.items(),
+            key=lambda x: x[1],
             reverse=True
         )[:3]
-        
+
         top_findings_text = ", ".join([
-            f"{f[0]} ({round(f[1]*100,1)}%)" 
+            f"{f[0]} ({round(f[1]*100,1)}%)"
             for f in sorted_findings
         ])
-        
+
         all_probs_text = ", ".join([
-            f"{k}: {round(v*100,1)}%" 
+            f"{k}: {round(v*100,1)}%"
             for k, v in all_probabilities.items()
         ])
-        
+
         if confidence > 0.8:
             risk = "high"
             urgency = "See a dentist within a week"
@@ -50,10 +50,10 @@ class ExplanationService:
         else:
             risk = "low"
             urgency = "Monitor and discuss at next regular checkup"
-        
+
         if not self.llm:
             return self._get_template_explanation(prediction, confidence_pct, risk, urgency)
-        
+
         try:
             prompt = f"""
 You are a dental AI assistant explaining analysis results to a patient.
@@ -71,10 +71,10 @@ Provide a helpful, empathetic explanation including:
 
 Keep it clear and concise.
 """
-            
+
             response = self.llm.invoke(prompt)
             explanation_text = response.content if hasattr(response, 'content') else str(response)
-            
+
             return {
                 "condition": prediction,
                 "confidence_percentage": confidence_pct,
@@ -83,14 +83,14 @@ Keep it clear and concise.
                 "ai_generated": True,
                 "explanation": explanation_text,
                 "differential": [
-                    {"condition": f[0], "confidence": round(f[1]*100, 1)} 
+                    {"condition": f[0], "confidence": round(f[1]*100, 1)}
                     for f in sorted_findings if f[0] != prediction
                 ]
             }
         except Exception as e:
             logger.error(f"Gemini error: {e}")
             return self._get_template_explanation(prediction, confidence_pct, risk, urgency)
-    
+
     def _get_template_explanation(self, prediction, confidence_pct, risk, urgency):
         """Fallback template explanations"""
         explanations = {
@@ -149,9 +149,9 @@ Keep it clear and concise.
                 ]
             }
         }
-        
+
         base = explanations.get(prediction, explanations["Caries"])
-        
+
         return {
             "condition": prediction,
             "confidence_percentage": confidence_pct,
