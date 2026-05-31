@@ -97,6 +97,10 @@ def _run_ai_pipeline(db: Session, scan: Scan):
         response.raise_for_status()
         image_bytes = response.content
 
+        # ── 2b. Denoise / degrain image before AI analysis ────────────────
+        from app.services.image_preprocessing_service import preprocess_image
+        image_bytes = preprocess_image(image_bytes)
+
         # ── 3. YOLO detection ─────────────────────────────────────────────
         from app.services.yolo_service import run_detection
         yolo_result = run_detection(image_bytes)
