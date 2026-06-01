@@ -1,4 +1,3 @@
-/* TEMPORARILY COMMENTED OUT
 "use client";
 import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, SectionCard } from "@/components/ui/shared";
@@ -389,9 +388,4 @@ export default function AdminSettingsPage() {
       </div>
     </AppLayout>
   );
-}
-END TEMPORARILY COMMENTED OUT */
-
-export default function AdminSettingsPage() {
-  return null;
 }
