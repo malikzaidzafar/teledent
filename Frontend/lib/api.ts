@@ -44,8 +44,9 @@ async function request<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // Auto-refresh on 401
-  if (res.status === 401 && !isRetry) {
+  // Auto-refresh on 401 — but NOT for auth endpoints (login, register, etc.)
+  const isAuthEndpoint = path.startsWith("/auth/");
+  if (res.status === 401 && !isRetry && !isAuthEndpoint) {
     const refreshToken = tokenStore.getRefresh();
     if (refreshToken) {
       try {
