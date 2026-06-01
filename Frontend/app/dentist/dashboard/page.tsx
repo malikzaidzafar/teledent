@@ -15,6 +15,8 @@ export default function DentistDashboardPage() {
 
   if (authLoading) return null;
 
+  const isApproved = (user as any)?.is_approved;
+
   const pendingScans = scansData?.data?.filter(s => !s.dentist_reviewed) || [];
   const todayAppts = apptData?.data?.filter(a => {
     const d = new Date(a.scheduled_at);
@@ -38,6 +40,15 @@ export default function DentistDashboardPage() {
         action={<Link href="/dentist/profile" className="btn btn-ghost btn-sm">My Profile</Link>}
       />
       <div className="page-body">
+        {isApproved === false && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "var(--radius)", padding: "14px 18px", marginBottom: 22, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 22 }}>⏳</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#92400e" }}>Account Pending Approval</div>
+              <div style={{ fontSize: 13, color: "#b45309", marginTop: 2 }}>Your account is under review by the admin. You will be able to receive appointments and access all features once approved.</div>
+            </div>
+          </div>
+        )}
         <div className="grid-4" style={{ marginBottom: 24 }}>
           {STATS.map((s) => <StatCard key={s.label} {...s} />)}
         </div>

@@ -119,14 +119,20 @@ def forgot_password(db: Session, email: str):
 
 
 def _serialize_user(user: User) -> dict:
-    return {
+    from app.models.dentist import Dentist
+    role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    data = {
         "id": str(user.id),
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+        "role": role,
         "is_active": user.is_active,
+        "is_approved": None,
     }
+    if role == "dentist" and hasattr(user, "dentist_profile") and user.dentist_profile:
+        data["is_approved"] = user.dentist_profile.is_approved
+    return data
 
 
 def reset_password(db: Session, token: str, new_password: str):
@@ -156,3 +162,62 @@ def update_me(db: Session, user_id: str, data: dict) -> dict:
     db.commit()
     db.refresh(user)
     return _serialize_user(user)
+
+
+def google_auth(db: Session, id_token: str, role: str = "patient") -> dict:
+    """Verify a Google ID token and sign the user in (or create an account)."""
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    from app.config import settings
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        raise UnauthorizedException("Invalid Google token.")
+
+    google_sub = idinfo["sub"]
+    email = idinfo.get("email", "")
+    first_name = idinfo.get("given_name", "")
+    last_name = idinfo.get("family_name", "")
+    if not email:
+        raise BadRequestException("Google account has no email address.")
+
+    # Look up existing user by google_id first, then email
+    user = db.query(User).filter(User.google_id == google_sub).first()
+    if not user:
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            # Link Google to existing email account
+            user.google_id = google_sub
+            db.commit()
+
+    if not user:
+        # Create a new account
+        if role not in ("patient", "dentist"):
+            role = "patient"
+        user = User(
+            email=email,
+            hashed_password=None,
+            google_id=google_sub,
+            first_name=first_name,
+            last_name=last_name,
+            role=UserRole(role),
+            is_email_verified=True,
+        )
+        db.add(user)
+        db.flush()
+        if role == "patient":
+            db.add(Patient(id=uuid.uuid4(), user_id=user.id))
+        elif role == "dentist":
+            auto_approve = getattr(settings, "DEBUG", False)
+            db.add(Dentist(id=uuid.uuid4(), user_id=user.id, is_approved=bool(auto_approve)))
+        db.commit()
+        db.refresh(user)
+
+    access = create_access_token(str(user.id), user.role)
+    refresh = create_refresh_token(str(user.id))
+    return {"user": _serialize_user(user), "access_token": access, "refresh_token": refresh}

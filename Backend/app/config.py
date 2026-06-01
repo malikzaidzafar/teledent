@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     YOLO_MODEL_PATH: str = ""  # Override path to best.pt; auto-resolved if empty
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""  # e.g. 1234567890-abc.apps.googleusercontent.com
+
     # Stripe payments
     STRIPE_SECRET_KEY: str = ""          # sk_test_...
     STRIPE_PUBLISHABLE_KEY: str = ""   # pk_test_...

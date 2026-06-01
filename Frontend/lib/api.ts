@@ -103,6 +103,10 @@ export const authApi = {
     request<{ user_id: string; access_token: string; refresh_token: string }>(
       "POST", "/auth/register", data
     ),
+  googleLogin: (id_token: string, role?: string) =>
+    request<{ access_token: string; refresh_token: string; user: User }>(
+      "POST", "/auth/google", { id_token, role }
+    ),
   logout: (refresh_token: string) =>
     request<void>("POST", "/auth/logout", { refresh_token }),
   me: () => request<User>("GET", "/auth/me"),

@@ -51,6 +51,10 @@ class UpdateMeIn(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
+class GoogleAuthIn(BaseModel):
+    id_token: str
+    role: Optional[str] = "patient"  # used only when creating a new account
+
 
 # --- Routes ---
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -94,3 +98,8 @@ def me(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
 @router.patch("/me")
 def update_me(body: UpdateMeIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     return auth_service.update_me(db, current_user.id, body.model_dump(exclude_none=True))
+
+
+@router.post("/google")
+def google_auth(body: GoogleAuthIn, db: Session = Depends(get_db)):
+    return auth_service.google_auth(db, body.id_token, body.role or "patient")

@@ -22,7 +22,8 @@ class User(Base):
     # TODO: finalize field set
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)   # nullable for OAuth-only users
+    google_id = Column(String(128), unique=True, nullable=True, index=True)
     first_name = Column(String(100), nullable=False)          # TODO: imaginary
     last_name = Column(String(100), nullable=False)           # TODO: imaginary
     role = Column(SAEnum(UserRole), nullable=False, default=UserRole.patient)

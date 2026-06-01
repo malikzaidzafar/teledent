@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import GoogleProvider from "@/components/common/GoogleProvider";
 
 export const metadata: Metadata = {
   title: {
@@ -33,7 +34,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <body><GoogleProvider><AuthProvider>{children}</AuthProvider></GoogleProvider></body>
     </html>
   );
 }

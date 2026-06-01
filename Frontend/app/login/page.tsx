@@ -1,5 +1,6 @@
 "use client";
 import AuthShell from "@/components/common/AuthShell";
+import GoogleSignInButton from "@/components/common/GoogleSignInButton";
 import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { useAuth } from "@/lib/auth";
@@ -63,6 +64,13 @@ export default function LoginPage() {
           {loading ? "Signing in…" : "Sign In "}
         </button>
       </form>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+        <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border-color, #e2e8f0)" }} />
+        <span style={{ fontSize: 13, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>or</span>
+        <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border-color, #e2e8f0)" }} />
+      </div>
+      <GoogleSignInButton />
 
       <div className="divider" />
       <p style={{ fontSize: 14, color: "var(--text-secondary)", textAlign: "center" }}>

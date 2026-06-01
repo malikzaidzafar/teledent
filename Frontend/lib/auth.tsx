@@ -11,6 +11,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string, role?: string) => Promise<void>;
   register: (data: { email: string; password: string; first_name: string; last_name: string; role: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -43,6 +44,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push(dest);
   }, [router]);
 
+  const loginWithGoogle = useCallback(async (idToken: string, role?: string) => {
+    const res = await authApi.googleLogin(idToken, role);
+    tokenStore.set(res.access_token, res.refresh_token);
+    setUser(res.user);
+    const dest = res.user.role === "admin" ? "/admin/dashboard"
+      : res.user.role === "dentist" ? "/dentist/dashboard"
+      : "/patient/dashboard";
+    router.push(dest);
+  }, [router]);
+
   const register = useCallback(async (data: Parameters<typeof authApi.register>[0]) => {
     const res = await authApi.register(data);
     tokenStore.set(res.access_token, res.refresh_token);
@@ -60,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

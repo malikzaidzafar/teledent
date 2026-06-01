@@ -70,12 +70,16 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`} onClick={close}>
+                {item.icon && <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: active ? 1 : 0.7 }}>{item.icon}</span>}
                 {item.label}
               </Link>
             );
           })}
           <div className="nav-section-label">Account</div>
-          <Link href={`/${role}/settings`} className={`nav-item ${pathname === `/${role}/settings` ? "active" : ""}`} onClick={close}>Settings</Link>
+          <Link href={`/${role}/settings`} className={`nav-item ${pathname === `/${role}/settings` ? "active" : ""}`} onClick={close}>
+            <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: pathname === `/${role}/settings` ? 1 : 0.7 }}>⚙️</span>
+            Settings
+          </Link>
         </nav>
 
         <div className="sidebar-footer">
