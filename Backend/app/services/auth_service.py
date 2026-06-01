@@ -30,7 +30,8 @@ def register_user(db: Session, email: str, password: str, first_name: str, last_
     if role == "patient":
         db.add(Patient(id=uuid.uuid4(), user_id=user.id))
     elif role == "dentist":
-        db.add(Dentist(id=uuid.uuid4(), user_id=user.id, is_approved=False))
+        auto_approve = getattr(settings, "DEBUG", False)
+        db.add(Dentist(id=uuid.uuid4(), user_id=user.id, is_approved=bool(auto_approve)))
 
     db.commit()
     db.refresh(user)
@@ -40,10 +41,48 @@ def register_user(db: Session, email: str, password: str, first_name: str, last_
     return {"user": _serialize_user(user), "access_token": access, "refresh_token": refresh}
 
 
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+
 def login_user(db: Session, email: str, password: str) -> dict:
+    from datetime import datetime, timezone, timedelta
+
     user = db.query(User).filter(User.email == email, User.is_active == True).first()
-    if not user or not verify_password(password, user.hashed_password):
+
+    # Unknown email — still return generic 401 (no info leakage)
+    if not user:
         raise UnauthorizedException("Invalid email or password.")
+
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    locked_until = user.locked_until
+    if locked_until is not None and locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    if locked_until and locked_until > now:
+        remaining = int((locked_until - now).total_seconds() / 60) + 1
+        raise UnauthorizedException(
+            f"Account locked due to too many failed attempts. "
+            f"Try again in {remaining} minute(s)."
+        )
+
+    # Verify password
+    if not verify_password(password, user.hashed_password):
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= MAX_FAILED_ATTEMPTS:
+            user.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+            db.commit()
+            raise UnauthorizedException(
+                f"Account locked after {MAX_FAILED_ATTEMPTS} failed attempts. "
+                f"Try again in {LOCKOUT_MINUTES} minutes."
+            )
+        db.commit()
+        raise UnauthorizedException("Invalid email or password.")
+
+    # Successful login — reset counter
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.commit()
 
     access = create_access_token(str(user.id), user.role)
     refresh = create_refresh_token(str(user.id))

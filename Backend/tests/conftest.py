@@ -83,9 +83,10 @@ _db_mod2.SessionLocal = TestingSessionLocal
 
 @pytest.fixture(scope="session", autouse=True)
 def create_tables():
-    """Create all tables in SQLite once per test session."""
+    """Drop and recreate all tables in SQLite once per test session."""
     # Import all models to register them with Base.metadata
     import app.models  # noqa: F401
+    Base.metadata.drop_all(bind=test_engine)   # always start fresh
     Base.metadata.create_all(bind=test_engine)
     yield
     Base.metadata.drop_all(bind=test_engine)

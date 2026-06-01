@@ -81,12 +81,15 @@ class TestTC11_DentistValidation:
             headers=auth_headers(d_token),
         )
         assert resp.status_code == 200, resp.text
-        updated = resp.json()
-        # Response may be the full ORM object or a summary dict
-        notes = updated.get("dentist_notes") or updated.get("notes")
-        diagnosis = updated.get("final_diagnosis") or updated.get("diagnosis")
-        assert notes is not None, f"dentist_notes missing from response: {list(updated.keys())}"
-        assert diagnosis is not None, f"final_diagnosis missing from response: {list(updated.keys())}"
+
+        # Verify the update persisted by fetching the report
+        get_resp = app_client.get(f"/reports/{report_id}", headers=auth_headers(d_token))
+        assert get_resp.status_code == 200, get_resp.text
+        fetched = get_resp.json()
+        assert fetched.get("dentist_notes") is not None, \
+            f"dentist_notes not persisted, report keys: {list(fetched.keys())}"
+        assert fetched.get("final_diagnosis") is not None, \
+            f"final_diagnosis not persisted, report keys: {list(fetched.keys())}"
 
     def test_dentist_can_create_manual_report(self, app_client):
         """Dentist can create a completely new report for a patient's scan."""
@@ -233,14 +236,9 @@ class TestTC13_DentistAcceptsAppointment:
     xfail until a pending status + dentist-accept flow is implemented.
     """
 
-    @pytest.mark.xfail(
-        reason="Appointment 'pending' status and dentist-accept flow not yet implemented",
-        strict=True,
-    )
     def test_dentist_accepts_pending_appointment(self, app_client):
         """
         Expects a pending → confirmed workflow triggered by a dentist action.
-        Currently the appointment is auto-confirmed on creation.
         """
         patient = register_and_login(
             app_client, f"accpat_{uuid.uuid4().hex[:8]}@test.com", "AccPass99!"
@@ -257,7 +255,7 @@ class TestTC13_DentistAcceptsAppointment:
         if not dentist_profile_id:
             pytest.skip("Could not resolve dentist id")
 
-        # Create appointment — expect it to start as 'pending'
+        # Create appointment — must start as 'pending'
         appt_resp = app_client.post(
             "/appointments",
             json={"dentist_id": dentist_profile_id, "scheduled_at": "2026-09-01T11:00:00", "type": "video_consultation"},
@@ -265,12 +263,11 @@ class TestTC13_DentistAcceptsAppointment:
         )
         assert appt_resp.status_code == 201
         appt_id = appt_resp.json()["id"]
-        assert appt_resp.json()["status"] == "pending"  # ← fails today
+        assert appt_resp.json()["status"] == "pending"
 
-        # Dentist accepts
-        accept_resp = app_client.patch(
-            f"/appointments/{appt_id}",
-            json={"status": "confirmed"},
+        # Dentist accepts via dedicated endpoint
+        accept_resp = app_client.post(
+            f"/appointments/{appt_id}/accept",
             headers=auth_headers(dentist["access_token"]),
         )
         assert accept_resp.status_code == 200
@@ -315,30 +312,44 @@ class TestTC14_PaymentProcessing:
     payment router, model, or service.  All tests are marked xfail.
     """
 
-    @pytest.mark.xfail(
-        reason="Stripe payment integration is not yet implemented in the backend",
-        strict=True,
-    )
     def test_payment_endpoint_exists(self, app_client):
         resp = app_client.post("/payments/create-intent", json={"appointment_id": str(uuid.uuid4())})
         assert resp.status_code not in (404, 405), "Payment endpoint does not exist"
 
-    @pytest.mark.xfail(
-        reason="Stripe payment integration is not yet implemented in the backend",
-        strict=True,
-    )
     def test_successful_payment_returns_200(self, app_client):
         patient = register_and_login(
             app_client, f"pay_{uuid.uuid4().hex[:8]}@test.com", "PayPass99!"
         )
-        with patch("stripe.PaymentIntent.create") as mock_stripe:
-            mock_stripe.return_value = MagicMock(id="pi_test", status="succeeded", client_secret="secret_test")
+        dentist = _create_dentist(app_client)
+        dentist_list = app_client.get("/dentists", headers=auth_headers(dentist["access_token"]))
+        dentists = dentist_list.json()
+        dentist_profile_id = None
+        if isinstance(dentists, list) and dentists:
+            dentist_profile_id = dentists[0]["id"]
+        elif isinstance(dentists, dict) and dentists.get("data"):
+            dentist_profile_id = dentists["data"][0]["id"]
+        if not dentist_profile_id:
+            pytest.skip("Could not resolve dentist id for payment test")
+
+        appt_resp = app_client.post(
+            "/appointments",
+            json={"dentist_id": dentist_profile_id, "scheduled_at": "2026-09-15T10:00:00", "type": "video_consultation"},
+            headers=auth_headers(patient["access_token"]),
+        )
+        assert appt_resp.status_code == 201
+        appt_id = appt_resp.json()["id"]
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_test_123"
+        mock_intent.client_secret = "pi_test_123_secret_abc"
+        mock_intent.status = "requires_payment_method"
+        with patch("app.services.payment_service.stripe.PaymentIntent.create", return_value=mock_intent):
             resp = app_client.post(
                 "/payments/create-intent",
-                json={"appointment_id": str(uuid.uuid4()), "amount": 5000, "currency": "usd"},
+                json={"appointment_id": appt_id},
                 headers=auth_headers(patient["access_token"]),
             )
-        assert resp.status_code == 200
+        assert resp.status_code == 200, resp.text
         assert "client_secret" in resp.json()
 
     @pytest.mark.xfail(

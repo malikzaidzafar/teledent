@@ -446,3 +446,24 @@ export interface MessageOut {
   is_read: boolean;
   sent_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Payment
+// ---------------------------------------------------------------------------
+export interface PaymentIntent {
+  payment_id: string;
+  appointment_id: string;
+  status: "pending" | "succeeded" | "failed" | "not_created";
+  amount_cents: number;
+  currency: string;
+  client_secret: string | null;
+  publishable_key: string;
+}
+
+export const paymentApi = {
+  createIntent: (appointment_id: string) =>
+    request<PaymentIntent>("POST", "/payments/create-intent", { appointment_id }),
+
+  getStatus: (appointment_id: string) =>
+    request<PaymentIntent>("GET", `/payments/status/${appointment_id}`),
+};

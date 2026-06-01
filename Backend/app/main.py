@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
+import cloudinary
 from app.config import settings
 from app.database import Base, engine
 import app.models  # noqa: F401 — registers all ORM models with metadata
@@ -12,7 +13,15 @@ from app.core.exceptions import (
     AppException, app_exception_handler,
     validation_exception_handler, generic_exception_handler,
 )
-from app.routers import auth, patients, scans, reports, appointments, video, files, dentists, admin_stats, messages
+from app.routers import auth, patients, scans, reports, appointments, video, files, dentists, admin_stats, messages, payments
+
+# Configure Cloudinary once at startup
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+    secure=True,
+)
 
 # Create tables (replace with Alembic migrations in production)
 Base.metadata.create_all(bind=engine)
@@ -52,6 +61,7 @@ app.include_router(files.router)
 app.include_router(dentists.router)
 app.include_router(admin_stats.router)
 app.include_router(messages.router)
+app.include_router(payments.router)
 
 
 @app.get("/", tags=["Health"])

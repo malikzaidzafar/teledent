@@ -41,12 +41,16 @@ def _get_model():
         # Resolve model path: explicit env var > config > auto-discovery
         model_path = settings.YOLO_MODEL_PATH or os.getenv("YOLO_MODEL_PATH", "")
         if not model_path:
-            # Walk up from this file: Backend/app/services/ → project root → teledent_3class_models/
-            model_path = str(
-                Path(__file__).parent.parent.parent.parent
-                / "teledent_3class_models"
-                / "best.pt"
-            )
+            # Check /app/best.pt first (Docker/HF Space deployment)
+            if Path("/app/best.pt").exists():
+                model_path = "/app/best.pt"
+            else:
+                # Walk up from this file: Backend/app/services/ → project root → teledent_3class_models/
+                model_path = str(
+                    Path(__file__).parent.parent.parent.parent
+                    / "teledent_3class_models"
+                    / "best.pt"
+                )
         if not Path(model_path).exists():
             raise FileNotFoundError(f"YOLO model not found at: {model_path}")
         from ultralytics import YOLO
@@ -157,11 +161,6 @@ def run_detection(image_bytes: bytes) -> dict:
 def _upload_annotated(image_bytes: bytes) -> str | None:
     """Upload the annotated JPEG to Cloudinary and return the secure URL."""
     try:
-        cloudinary.config(
-            cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-            api_key=settings.CLOUDINARY_API_KEY,
-            api_secret=settings.CLOUDINARY_API_SECRET,
-        )
         result = cloudinary.uploader.upload(
             io.BytesIO(image_bytes),
             resource_type="image",

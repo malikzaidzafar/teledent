@@ -34,7 +34,7 @@ def create_appointment(db: Session, user_id: str, data: dict) -> Appointment:
         scheduled_at=data["scheduled_at"],
         duration_min=data.get("duration_min", 30),
         type=data.get("type", "video_consultation").lower().replace(" ", "_"),
-        status=AppointmentStatus.confirmed,
+        status=AppointmentStatus.pending,
         join_url=f"https://video.teledent.ai/session/{uuid.uuid4()}",
     )
     db.add(appt)
@@ -85,6 +85,23 @@ def cancel_appointment(db: Session, appt_id: str, current_user):
     appt = get_appointment(db, appt_id, current_user)
     appt.status = AppointmentStatus.cancelled
     db.commit()
+
+
+def accept_appointment(db: Session, appt_id: str, dentist_user_id) -> Appointment:
+    dentist = db.query(Dentist).filter(Dentist.user_id == dentist_user_id).first()
+    if not dentist:
+        raise NotFoundException("Dentist profile", str(dentist_user_id))
+    appt = db.query(Appointment).filter(Appointment.id == appt_id).first()
+    if not appt:
+        raise NotFoundException("Appointment", appt_id)
+    if str(appt.dentist_id) != str(dentist.id):
+        raise ForbiddenException()
+    if appt.status != AppointmentStatus.pending:
+        raise ConflictException("Appointment is not in pending state.")
+    appt.status = AppointmentStatus.confirmed
+    db.commit()
+    db.refresh(appt)
+    return appt
 
 
 def complete_appointment(db: Session, appt_id: str, dentist_id: str):

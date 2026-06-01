@@ -10,3 +10,4 @@ from app.models.report import Report  # noqa: F401
 from app.models.video_session import VideoSession, VideoSessionStatus  # noqa: F401
 from app.models.message import Conversation, Message  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
+from app.models.payment import Payment, PaymentStatus  # noqa: F401

@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     YOLO_MODEL_PATH: str = ""  # Override path to best.pt; auto-resolved if empty
 
+    # Stripe payments
+    STRIPE_SECRET_KEY: str = ""          # sk_test_...
+    STRIPE_PUBLISHABLE_KEY: str = ""   # pk_test_...
+    STRIPE_WEBHOOK_SECRET: str = ""    # whsec_...
+    PAYMENT_CURRENCY: str = "usd"
+    CONSULTATION_FEE_CENTS: int = 2500  # $25.00 default
+
     # Rate limiting
     RATE_LIMIT_AUTH: str = "10/minute"
     RATE_LIMIT_SCAN: str = "5/minute"

@@ -18,7 +18,9 @@ async def generate_report_pdf(report_data: dict) -> bytes:
     html = _render_html("report.html", report_data)
     from playwright.async_api import async_playwright
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
         page = await browser.new_page()
         await page.set_content(html, wait_until="networkidle")
         pdf_bytes = await page.pdf(format="A4", print_background=True)
@@ -27,12 +29,7 @@ async def generate_report_pdf(report_data: dict) -> bytes:
 
 
 def upload_pdf_to_cloudinary(pdf_bytes: bytes, report_id: str) -> str:
-    import cloudinary, cloudinary.uploader, io
-    cloudinary.config(
-        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-        api_key=settings.CLOUDINARY_API_KEY,
-        api_secret=settings.CLOUDINARY_API_SECRET,
-    )
+    import cloudinary.uploader, io
     result = cloudinary.uploader.upload(
         io.BytesIO(pdf_bytes),
         resource_type="raw",

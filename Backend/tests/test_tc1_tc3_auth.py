@@ -141,15 +141,10 @@ class TestTC3_SecurityLockout:
             resp = app_client.post("/auth/login", json={"email": email, "password": "WrongPass!"})
             assert resp.status_code == 401, f"Attempt {attempt + 1} did not return 401"
 
-    @pytest.mark.xfail(
-        reason="Account lockout after 5 failed attempts is not yet implemented in auth_service.login_user",
-        strict=True,
-    )
     def test_account_locked_after_five_failed_attempts(self, app_client):
         """
         After 5 failed attempts the 6th attempt (even with correct password)
-        should return 423 Locked or 401 with a lockout message.
-        EXPECTED to fail until lockout logic is added.
+        should return 401 with a lockout message.
         """
         email = f"lockout_{uuid.uuid4().hex[:8]}@test.com"
         correct_password = "Correct1!"
@@ -162,6 +157,6 @@ class TestTC3_SecurityLockout:
 
         # After lockout, even the correct password should be rejected
         resp = app_client.post("/auth/login", json={"email": email, "password": correct_password})
-        assert resp.status_code in (423, 401)
+        assert resp.status_code == 401
         body = resp.json()
-        assert any(word in str(body).lower() for word in ("lock", "block", "attempt", "suspended"))
+        assert any(word in str(body).lower() for word in ("lock", "attempt", "try again"))

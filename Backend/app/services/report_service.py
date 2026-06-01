@@ -152,7 +152,9 @@ def _generate_and_store_pdf(db: Session, report: Report, scan=None, analysis=Non
         report.pdf_url = pdf_url
         db.commit()
     except Exception as e:
+        import traceback
         print(f"[PDF] Generation failed for report {report.id}: {e}")
+        print(traceback.format_exc())
 
 
 def list_reports(db: Session, user_id: str, role: str, page: int, limit: int):
@@ -248,6 +250,12 @@ def update_report(db: Session, report_id: str, dentist_user_id: str, data: dict)
 
     # Re-generate PDF with updated dentist notes
     _generate_and_store_pdf(db, report)
+
+    # Refresh after PDF generation commits (prevents expired-attribute serialisation)
+    try:
+        db.refresh(report)
+    except Exception:
+        pass
 
     # Notify patient
     try:

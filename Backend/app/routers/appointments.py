@@ -51,6 +51,11 @@ def cancel_appointment(appt_id: str, current_user=Depends(get_current_user), db:
     appointment_service.cancel_appointment(db, appt_id, current_user)
 
 
+@router.post("/{appt_id}/accept", dependencies=[Depends(require_role("dentist"))])
+def accept_appointment(appt_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return appointment_service.accept_appointment(db, appt_id, current_user.id)
+
+
 @router.post("/{appt_id}/complete", dependencies=[Depends(require_role("dentist"))])
 def complete_appointment(appt_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     appointment_service.complete_appointment(db, appt_id, current_user.id)

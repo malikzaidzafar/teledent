@@ -8,7 +8,7 @@ import pytest
 from tests.conftest import register_and_login, auth_headers
 
 # ── Supported MIME types (what the backend / Cloudinary accepts) ─────────────
-ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
 BLOCKED_MIME_TYPES = [
     ("text/plain",        "document.txt"),
     ("application/octet-stream", "malware.exe"),
@@ -116,10 +116,6 @@ class TestTC5_InvalidFileFormatRejection:
     Tests that expect rejection are marked xfail until that validation is added.
     """
 
-    @pytest.mark.xfail(
-        reason="MIME-type allowlist not yet implemented in /files/sign-upload",
-        strict=True,
-    )
     @pytest.mark.parametrize("mime_type,filename", BLOCKED_MIME_TYPES)
     def test_blocked_mime_type_rejected(self, app_client, mime_type, filename):
         data = register_and_login(
@@ -165,10 +161,6 @@ class TestTC6_LargeFileRejection:
     Test is marked xfail until server-side size validation is added.
     """
 
-    @pytest.mark.xfail(
-        reason="Server-side file-size validation (10 MB limit) is not yet implemented",
-        strict=True,
-    )
     def test_file_exceeding_10mb_is_rejected(self, app_client):
         data = register_and_login(
             app_client, f"bigfile_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"

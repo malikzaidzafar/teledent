@@ -17,6 +17,7 @@ class AppointmentType(str, enum.Enum):
 
 
 class AppointmentStatus(str, enum.Enum):
+    pending = "pending"
     confirmed = "confirmed"
     cancelled = "cancelled"
     completed = "completed"

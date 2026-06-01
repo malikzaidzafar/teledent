@@ -173,7 +173,7 @@ Using the image and the YOLO findings above, respond with ONLY a valid JSON obje
       "condition": "<condition name matching YOLO>",
       "severity": "<low|moderate|high>",
       "gemini_explanation": "<one sentence plain-language explanation>",
-      "recommendation": "<specific actionable recommendation>"
+      "recommendation": "<specific actionable recommendation — see rules below>"
     }}
   ],
   "image_quality": "<good|fair|poor>"
@@ -183,7 +183,15 @@ Rules:
 - findings_enriched must have one entry per YOLO detection (same order).
 - If YOLO found nothing, findings_enriched must be an empty array and overall_risk must be "none".
 - Be concise, accurate, and compassionate in patient_summary.
-- Do NOT add markdown or extra text outside the JSON."""
+- Do NOT add markdown or extra text outside the JSON.
+- RECOMMENDATION RULES (most important): Each recommendation must be specific, practical, and varied across findings.
+  * For LOW severity findings: give a home-care tip — e.g. brushing technique, fluoride toothpaste, oil pulling with coconut oil, clove oil application, saltwater rinses, dietary changes (reduce sugar/acidic drinks), or chewing xylitol gum.
+  * For MODERATE severity findings: combine a home remedy with a soft nudge to schedule a checkup — e.g. "Apply diluted clove oil to the area for temporary relief and book a dental checkup within 4-6 weeks."
+  * For HIGH severity findings: recommend seeing a dentist, but also give one immediate home-care action — e.g. "Avoid cold/sweet foods that trigger pain and see a dentist this week for cavity treatment."
+  * NEVER give the same generic "see a dentist" text across all findings. Each recommendation must be uniquely tailored to that specific condition and confidence level.
+  * Incorporate well-known natural remedies where appropriate: clove oil (analgesic), saltwater rinse (anti-inflammatory), turmeric paste (antiseptic), neem twigs/paste (antibacterial), oil pulling (plaque), aloe vera gel (gum inflammation).
+  * Mention specific brushing or flossing advice when relevant (e.g. soft-bristle brush, Bass technique, interdental brushes).
+  * Mention dietary advice when relevant (reduce sugary snacks, limit acidic drinks, increase calcium-rich foods)."""
 
         try:
             response = self.client.models.generate_content(
@@ -211,16 +219,56 @@ Rules:
         except (json.JSONDecodeError, Exception) as e:
             logger.error(f"Gemini enrichment failed: {e}")
             # Graceful fallback — build from YOLO data alone
-            risk_map = {"high": "high", "moderate": "moderate", "low": "low"}
+            _fallback_tips = {
+                "cavity": {
+                    "low": "Rinse with a fluoride mouthwash twice daily and cut back on sugary snacks and drinks to slow early decay.",
+                    "moderate": "Apply a small amount of clove oil to the area for temporary relief and schedule a dental appointment within the next few weeks.",
+                    "high": "Avoid cold, sweet, or acidic foods that trigger sensitivity and see a dentist this week — the cavity needs prompt treatment.",
+                },
+                "caries": {
+                    "low": "Brush with fluoride toothpaste using a soft-bristle brush twice a day, and add daily flossing to remove plaque between teeth.",
+                    "moderate": "Try a saltwater rinse (½ tsp salt in warm water) after meals to reduce bacteria, and book a dental checkup soon.",
+                    "high": "Minimise sugar intake and book a dental visit this week; early treatment prevents the decay from spreading to the tooth root.",
+                },
+                "calculus": {
+                    "low": "Try oil pulling with a tablespoon of coconut oil for 10 minutes each morning to reduce plaque buildup.",
+                    "moderate": "Use a tartar-control toothpaste and an electric toothbrush, and schedule a professional cleaning within 4–6 weeks.",
+                    "high": "Tartar at this level cannot be removed at home — book a professional dental cleaning soon to prevent gum damage.",
+                },
+                "gingivitis": {
+                    "low": "Rinse with a warm saltwater solution twice daily and use the Bass brushing technique along the gumline to reduce inflammation.",
+                    "moderate": "Apply diluted aloe vera gel to inflamed gums for relief, and focus on flossing daily — gum disease is reversible at this stage.",
+                    "high": "Use an antiseptic chlorhexidine mouthwash and book a dental cleaning; untreated gingivitis can progress to bone loss.",
+                },
+                "mouth ulcer": {
+                    "low": "Dab a little honey or aloe vera gel on the ulcer 2–3 times a day — both have natural healing and antibacterial properties.",
+                    "moderate": "Avoid spicy and acidic foods, rinse with saltwater after meals, and use an over-the-counter topical anaesthetic gel for pain relief.",
+                    "high": "If the ulcer hasn't healed in 2 weeks or is very painful, see a dentist — it may need prescription treatment.",
+                },
+                "tooth discoloration": {
+                    "low": "Brush with a whitening toothpaste and reduce staining drinks like coffee, tea, and cola — rinse your mouth with water after consuming them.",
+                    "moderate": "Try oil pulling with coconut oil daily and consider a professional clean to remove surface stains.",
+                    "high": "Surface staining at this level benefits from professional polishing; ask your dentist about safe whitening options during your next visit.",
+                },
+            }
             enriched = []
             for d in detections:
                 conf = d["confidence"]
                 sev = "high" if conf > 0.7 else "moderate" if conf > 0.4 else "low"
+                cond_key = d["class"].lower().replace(" ", "_")
+                tips = _fallback_tips.get(cond_key) or _fallback_tips.get(d["class"].lower())
+                if tips:
+                    rec = tips.get(sev, tips.get("moderate", f"Maintain good oral hygiene and consult a dentist about {d['class']}."))
+                else:
+                    rec = (
+                        f"Avoid foods that aggravate the area and see a dentist soon about {d['class']}." if sev == "high"
+                        else f"Brush and floss regularly, and discuss {d['class']} with your dentist at your next checkup."
+                    )
                 enriched.append({
                     "condition": d["class"],
                     "severity": sev,
                     "gemini_explanation": f"Detected by AI model with {round(conf * 100)}% confidence.",
-                    "recommendation": f"Consult your dentist about {d['class']}.",
+                    "recommendation": rec,
                 })
             overall = "high" if any(e["severity"] == "high" for e in enriched) else "moderate" if enriched else "none"
             return {

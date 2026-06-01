@@ -39,14 +39,15 @@ function BookAppointmentPageInner() {
     setError(null);
     setBooking(dentist.id);
     try {
-      await appointmentApi.create({
+      const appt = await appointmentApi.create({
         dentist_id: dentist.id,
         scheduled_at: slot,
         duration_min: 30,
         type: "Video Consultation",
         scan_id: prefilledScanId,
       });
-      router.push("/patient/appointments");
+      // Redirect to Stripe checkout for payment
+      router.push(`/patient/checkout?appointment_id=${appt.appointment_id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Booking failed. Please try again.");
     } finally {
