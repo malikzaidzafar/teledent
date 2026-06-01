@@ -18,6 +18,7 @@ export default function DentistDashboardPage() {
   const isApproved = (user as any)?.is_approved;
 
   const pendingScans = scansData?.data?.filter(s => !s.dentist_reviewed) || [];
+  const pending = apptData?.data?.filter(a => a.status === "pending") || [];
   const todayAppts = apptData?.data?.filter(a => {
     const d = new Date(a.scheduled_at);
     const today = new Date();
@@ -37,7 +38,7 @@ export default function DentistDashboardPage() {
       <PageHeader
         title="Dentist Dashboard"
         subtitle={`Welcome, Dr. ${user?.last_name ?? ""}. You have ${pendingScans.length} case${pendingScans.length !== 1 ? "s" : ""} to review.`}
-        action={<Link href="/dentist/profile" className="btn btn-ghost btn-sm">My Profile</Link>}
+        action={<Link href="/dentist/appointments" className="btn btn-ghost btn-sm">Manage Appointments</Link>}
       />
       <div className="page-body">
         {isApproved === false && (
@@ -48,6 +49,36 @@ export default function DentistDashboardPage() {
               <div style={{ fontSize: 13, color: "#b45309", marginTop: 2 }}>Your account is under review by the admin. You will be able to receive appointments and access all features once approved.</div>
             </div>
           </div>
+        )}
+
+        {/* Pending appointments alert */}
+        {pending.length > 0 && (
+          <Link href="/dentist/appointments" style={{ textDecoration: "none" }}>
+            <div style={{
+              background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+              border: "1px solid #fcd34d",
+              borderRadius: "var(--radius-lg)",
+              padding: "16px 22px",
+              marginBottom: 22,
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              cursor: "pointer",
+              transition: "box-shadow 0.2s",
+              boxShadow: "0 2px 12px rgba(251,191,36,0.15)",
+            }}>
+              <span style={{ fontSize: 28 }}>📅</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#92400e" }}>
+                  {pending.length} Appointment Request{pending.length > 1 ? "s" : ""} Awaiting Confirmation
+                </div>
+                <div style={{ fontSize: 13, color: "#b45309", marginTop: 2 }}>
+                  Click to review and confirm patient appointment bookings.
+                </div>
+              </div>
+              <span style={{ color: "#b45309", fontWeight: 700, fontSize: 18 }}>→</span>
+            </div>
+          </Link>
         )}
         <div className="grid-4" style={{ marginBottom: 24 }}>
           {STATS.map((s) => <StatCard key={s.label} {...s} />)}

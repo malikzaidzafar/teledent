@@ -17,10 +17,11 @@ const NAV_MAP = {
   ] as NavItem[],
   dentist: [
     { href: "/dentist/dashboard",     label: "Dashboard",     icon: "⊞" },
-    { href: "/dentist/cases",         label: "Patient Cases", icon: "" },
-    { href: "/dentist/messages",      label: "Messages",      icon: "" },
-    { href: "/dentist/profile",       label: "My Profile",    icon: "" },
-    { href: "/dentist/video",         label: "Video Sessions", icon: "" },
+    { href: "/dentist/appointments",  label: "Appointments",  icon: "📅" },
+    { href: "/dentist/cases",         label: "Patient Cases", icon: "🦷" },
+    { href: "/dentist/messages",      label: "Messages",      icon: "💬" },
+    { href: "/dentist/profile",       label: "My Profile",    icon: "👤" },
+    { href: "/dentist/video",         label: "Video Sessions", icon: "🎥" },
   ] as NavItem[],
   admin: [
     { href: "/admin/dashboard",       label: "Dashboard",     icon: "⊞" },
@@ -85,7 +86,7 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
           */}
           {role !== "admin" && (
             <Link href={`/${role}/settings`} className={`nav-item ${pathname === `/${role}/settings` ? "active" : ""}`} onClick={close}>
-              <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: pathname === `/${role}/settings` ? 1 : 0.7 }}></span>
+              <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: pathname === `/${role}/settings` ? 1 : 0.7 }}>⚙️</span>
               Settings
             </Link>
           )}

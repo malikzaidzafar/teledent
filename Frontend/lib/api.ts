@@ -160,6 +160,7 @@ export const appointmentApi = {
   get: (id: string) => request<Appointment>("GET", `/appointments/${id}`),
   update: (id: string, data: Partial<Appointment>) => request<Appointment>("PATCH", `/appointments/${id}`, data),
   cancel: (id: string) => request<void>("DELETE", `/appointments/${id}`),
+  accept: (id: string) => request<Appointment>("POST", `/appointments/${id}/accept`),
   complete: (id: string) => request<{ message: string }>("POST", `/appointments/${id}/complete`),
 };
 

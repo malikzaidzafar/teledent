@@ -4,8 +4,9 @@ import { PageHeader, Badge, Avatar, SectionCard } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { useAppointments } from "@/lib/hooks/useAppointments";
-import { appointmentApi } from "@/lib/api";
+import { appointmentApi, messagesApi } from "@/lib/api";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const sv = (s: string) =>
   s === "confirmed" ? "success" : s === "pending" ? "warning" : s === "completed" ? "blue" : "danger";
@@ -14,6 +15,8 @@ export default function AppointmentsPage() {
   const { loading: authLoading } = useRequireAuth("patient");
   const { data, loading, error, refetch } = useAppointments();
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [messaging, setMessaging] = useState<string | null>(null);
+  const router = useRouter();
 
   if (authLoading) return null;
 
@@ -30,6 +33,17 @@ export default function AppointmentsPage() {
     }
   }
 
+  async function handleMessage(dentistId: string, apptId: string) {
+    setMessaging(apptId);
+    try {
+      // Create or retrieve existing conversation with this dentist
+      const conv = await messagesApi.startConversation(dentistId);
+      router.push(`/patient/messages?conv=${conv.id}`);
+    } catch {
+      setMessaging(null);
+    }
+  }
+
   return (
     <AppLayout role="patient" pageTitle="Appointments">
       <PageHeader title="My Appointments" subtitle="Your scheduled and past dental consultations."
@@ -43,7 +57,16 @@ export default function AppointmentsPage() {
               <div style={{ fontWeight: 800, fontSize: 17 }}>{new Date(nextAppt.scheduled_at).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
               <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{nextAppt.type} · {nextAppt.duration_min} min Video Call</div>
             </div>
-            {nextAppt.join_url && <Link href="/patient/video" className="btn btn-primary">Join Call </Link>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleMessage(nextAppt.dentist_id, nextAppt.id)}
+                disabled={messaging === nextAppt.id}
+              >
+                {messaging === nextAppt.id ? "Opening…" : "💬 Message Dentist"}
+              </button>
+              {nextAppt.join_url && <Link href="/patient/video" className="btn btn-primary">Join Call </Link>}
+            </div>
           </div>
         )}
 
@@ -82,8 +105,19 @@ export default function AppointmentsPage() {
                         <td className="col-hide-sm" style={{ fontSize: 13, color: "var(--text-secondary)" }}>{a.duration_min} min</td>
                         <td><Badge variant={sv(a.status) as "success" | "warning" | "blue" | "danger"}>{a.status}</Badge></td>
                         <td>
-                          <div style={{ display: "flex", gap: 6 }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {a.status === "confirmed" && a.join_url && <Link href="/patient/video" className="btn btn-primary btn-sm">Join Call</Link>}
+                            {/* Message button for active appointments */}
+                            {(a.status === "pending" || a.status === "confirmed" || a.status === "completed") && (
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => handleMessage(a.dentist_id, a.id)}
+                                disabled={messaging === a.id}
+                                title="Send a message to your dentist"
+                              >
+                                {messaging === a.id ? "…" : "💬 Message"}
+                              </button>
+                            )}
                             {(a.status === "pending" || a.status === "confirmed") && (
                               <button
                                 className="btn btn-ghost btn-sm"

@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Avatar, SectionCard } from "@/components/ui/shared";
 import Link from "next/link";
-import { messagesApi, type ConversationOut, type MessageOut } from "@/lib/api";
+import { messagesApi, appointmentApi, type ConversationOut, type MessageOut, type Appointment } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 
 function fmtTime(iso: string) {
@@ -29,6 +30,7 @@ interface ConvMeta {
 
 export default function DentistMessagesPage() {
   const { user, loading: authLoading } = useRequireAuth("dentist");
+  const searchParams = useSearchParams();
   const [convMetas, setConvMetas] = useState<ConvMeta[]>([]);
   const [activeConv, setActiveConv] = useState<ConversationOut | null>(null);
   const [activeOtherName, setActiveOtherName] = useState("");
@@ -40,11 +42,27 @@ export default function DentistMessagesPage() {
   const [videoDate, setVideoDate] = useState("");
   const [videoTime, setVideoTime] = useState("");
   const [videoRequestSent, setVideoRequestSent] = useState(false);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [startingConv, setStartingConv] = useState<string | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Auto-open conversation from ?conv= param (e.g. redirected from appointments page)
   useEffect(() => {
-    if (!authLoading) loadConversations();
+    const convId = searchParams.get("conv");
+    if (convId && convMetas.length > 0) {
+      const target = convMetas.find(m => m.conv.id === convId);
+      if (target) openConversation(target);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, convMetas]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      loadConversations();
+      loadAppointments();
+    }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [authLoading]);
 
@@ -52,10 +70,21 @@ export default function DentistMessagesPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  async function loadAppointments() {
+    try {
+      const res = await appointmentApi.list(1);
+      const active = (res.data || []).filter(
+        a => a.status === "pending" || a.status === "confirmed" || a.status === "completed"
+      );
+      setAppointments(active);
+    } catch {}
+  }
+
   async function loadConversations() {
     setLoading(true);
     try {
-      const convs = await messagesApi.listConversations();      const metas = await Promise.all(
+      const convs = await messagesApi.listConversations();
+      const metas = await Promise.all(
         convs.map(async (conv) => {
           const msgs = await messagesApi.listMessages(conv.id).catch(() => [] as MessageOut[]);
           const unread = msgs.filter(m => m.sender_id !== user?.id && !m.is_read).length;
@@ -79,6 +108,21 @@ export default function DentistMessagesPage() {
     await loadMessages(meta.conv.id);
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(() => loadMessages(meta.conv.id), 5000);
+  }
+
+  async function startConversationWithPatient(patientUserId: string, patientLabel: string) {
+    setStartingConv(patientUserId);
+    try {
+      const conv = await messagesApi.startConversation(patientUserId);
+      await loadConversations();
+      const meta: ConvMeta = {
+        conv,
+        otherName: patientLabel,
+        unread: 0,
+      };
+      openConversation(meta);
+    } catch {}
+    setStartingConv(null);
   }
 
   async function sendVideoRequest() {
@@ -119,24 +163,37 @@ export default function DentistMessagesPage() {
 
   if (authLoading) return null;
 
+  // Patient IDs already in conversations
+  const existingPatientIds = new Set(convMetas.map(m => m.conv.patient_id));
+  // Deduplicate appointments by patient_id, excluding those already in conversations
+  const seenPatients = new Set<string>();
+  const appointmentsWithoutConv = appointments.filter(a => {
+    if (existingPatientIds.has(a.patient_id) || seenPatients.has(a.patient_id)) return false;
+    seenPatients.add(a.patient_id);
+    return true;
+  });
+
   return (
     <AppLayout role="dentist" pageTitle="Messages">
       <PageHeader title="Messages" subtitle="Secure patient communication" />
       <div className="page-body">
         {loading ? (
-            <div style={{ textAlign: "center", padding: 60 }}>
-              <div style={{ color: "var(--text-muted)" }}>Loading conversations...</div>
-            </div>
-          ) : (
+          <div style={{ textAlign: "center", padding: 60 }}>
+            <div style={{ color: "var(--text-muted)" }}>Loading conversations...</div>
+          </div>
+        ) : (
           <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20, height: "calc(100vh - 180px)" }}>
             {/* Conversation List */}
             <SectionCard title={`Conversations (${convMetas.length})`}>
-              <div style={{ overflowY: "auto" }}>
-                {convMetas.length === 0 && (
+              <div style={{ overflowY: "auto", height: "100%" }}>
+                {convMetas.length === 0 && appointmentsWithoutConv.length === 0 && (
                   <div style={{ padding: 24, color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>
-                    No conversations yet.
+                    No conversations yet.<br />
+                    <span style={{ fontSize: 12 }}>Conversations will appear here once patients book with you.</span>
                   </div>
                 )}
+
+                {/* Existing conversations */}
                 {convMetas.map((meta) => (
                   <div key={meta.conv.id} onClick={() => openConversation(meta)} style={{ padding: "14px 16px", borderBottom: "1px solid var(--surface-3)", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", background: activeConv?.id === meta.conv.id ? "var(--brand-blue-light)" : "transparent" }}>
                     <Avatar name={meta.otherName} size={36} />
@@ -152,14 +209,63 @@ export default function DentistMessagesPage() {
                     )}
                   </div>
                 ))}
+
+                {/* Start new conversations for appointment patients without chats */}
+                {appointmentsWithoutConv.length > 0 && (
+                  <>
+                    {convMetas.length > 0 && (
+                      <div style={{ padding: "8px 16px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--surface-2)" }}>
+                        Start New Conversation
+                      </div>
+                    )}
+                    {appointmentsWithoutConv.map((a) => (
+                      <div key={a.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--surface-3)", display: "flex", alignItems: "center", gap: 12 }}>
+                        <Avatar name="PT" size={36} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>Patient</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "capitalize" }}>
+                            {a.status} · {new Date(a.scheduled_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => startConversationWithPatient(a.patient_id, `Patient ${a.patient_id.slice(0, 6).toUpperCase()}`)}
+                          disabled={startingConv === a.patient_id}
+                          style={{ flexShrink: 0 }}
+                        >
+                          {startingConv === a.patient_id ? "…" : "Message"}
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </SectionCard>
 
             {/* Chat Window */}
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
               {!activeConv ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
-                  Select a conversation to start chatting.
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16, padding: 40 }}>
+                  <div style={{ fontSize: 48 }}>💬</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-secondary)" }}>No conversation selected</div>
+                  {appointmentsWithoutConv.length > 0 ? (
+                    <div style={{ textAlign: "center", fontSize: 13 }}>
+                      You have patients with appointments.<br />
+                      <button
+                        className="btn btn-primary"
+                        style={{ marginTop: 12 }}
+                        onClick={() => startConversationWithPatient(
+                          appointmentsWithoutConv[0].patient_id,
+                          `Patient ${appointmentsWithoutConv[0].patient_id.slice(0, 6).toUpperCase()}`
+                        )}
+                        disabled={startingConv !== null}
+                      >
+                        {startingConv ? "Starting…" : "💬 Start Conversation"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13 }}>Select a conversation to start chatting.</div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -167,6 +273,7 @@ export default function DentistMessagesPage() {
                     <Avatar name={activeOtherName} size={36} />
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{activeOtherName}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Your patient</div>
                     </div>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
                       {videoRequestSent && (
@@ -220,8 +327,9 @@ export default function DentistMessagesPage() {
               )}
             </div>
           </div>
-          )}
-        </div>
+        )}
+      </div>
+
       {showVideoModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--surface)", borderRadius: "var(--radius-lg)", padding: 32, width: 420, maxWidth: "90vw", boxShadow: "var(--shadow-lg)" }}>

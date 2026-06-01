@@ -1,0 +1,269 @@
+"use client";
+import { useState } from "react";
+import AppLayout from "@/components/common/AppLayout";
+import { PageHeader, Badge, Avatar, SectionCard } from "@/components/ui/shared";
+import { useRequireAuth } from "@/lib/auth";
+import { useAppointments } from "@/lib/hooks/useAppointments";
+import { appointmentApi, messagesApi } from "@/lib/api";
+import { useRouter } from "next/navigation";
+
+type Tab = "pending" | "confirmed" | "completed" | "all";
+
+const STATUS_VARIANT: Record<string, "success" | "warning" | "blue" | "danger"> = {
+  confirmed: "success",
+  pending: "warning",
+  completed: "blue",
+  cancelled: "danger",
+};
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+  });
+}
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+export default function DentistAppointmentsPage() {
+  const { loading: authLoading } = useRequireAuth("dentist");
+  const { data, loading, error, refetch } = useAppointments();
+  const router = useRouter();
+
+  const [tab, setTab] = useState<Tab>("pending");
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [completing, setCompleting] = useState<string | null>(null);
+  const [messaging, setMessaging] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (authLoading) return null;
+
+  const all = data?.data || [];
+  const pending   = all.filter(a => a.status === "pending");
+  const confirmed = all.filter(a => a.status === "confirmed");
+  const completed = all.filter(a => a.status === "completed");
+
+  const displayed = tab === "pending"   ? pending
+                  : tab === "confirmed" ? confirmed
+                  : tab === "completed" ? completed
+                  : all;
+
+  const TABS: { key: Tab; label: string; count: number }[] = [
+    { key: "pending",   label: "Pending",   count: pending.length },
+    { key: "confirmed", label: "Confirmed", count: confirmed.length },
+    { key: "completed", label: "Completed", count: completed.length },
+    { key: "all",       label: "All",       count: all.length },
+  ];
+
+  async function handleConfirm(id: string) {
+    setConfirming(id);
+    setActionError(null);
+    try {
+      await appointmentApi.accept(id);
+      refetch();
+    } catch (e: any) {
+      setActionError(e?.message || "Failed to confirm appointment.");
+    } finally {
+      setConfirming(null);
+    }
+  }
+
+  async function handleComplete(id: string) {
+    setCompleting(id);
+    setActionError(null);
+    try {
+      await appointmentApi.complete(id);
+      refetch();
+    } catch (e: any) {
+      setActionError(e?.message || "Failed to mark as complete.");
+    } finally {
+      setCompleting(null);
+    }
+  }
+
+  async function handleMessage(patientId: string, apptId: string) {
+    setMessaging(apptId);
+    try {
+      const conv = await messagesApi.startConversation(patientId);
+      router.push(`/dentist/messages?conv=${conv.id}`);
+    } catch {
+      setMessaging(null);
+    }
+  }
+
+  return (
+    <AppLayout role="dentist" pageTitle="Appointments">
+      <PageHeader
+        title="Appointments"
+        subtitle="Review incoming requests and manage your schedule."
+        action={
+          pending.length > 0 ? (
+            <span style={{
+              background: "#fef3c7", color: "#b45309", border: "1px solid #fcd34d",
+              borderRadius: 999, padding: "5px 14px", fontSize: 13, fontWeight: 700,
+            }}>
+              {pending.length} pending confirmation{pending.length > 1 ? "s" : ""}
+            </span>
+          ) : undefined
+        }
+      />
+
+      <div className="page-body">
+        {/* Error banner */}
+        {actionError && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", padding: "12px 16px", marginBottom: 18, color: "#dc2626", fontSize: 13 }}>
+            {actionError}
+          </div>
+        )}
+
+        {/* Tab bar */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 22, background: "var(--surface-2)", borderRadius: "var(--radius)", border: "1px solid var(--border)", overflow: "hidden", width: "fit-content" }}>
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "8px 20px", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
+                background: tab === t.key ? "var(--brand-blue)" : "transparent",
+                color: tab === t.key ? "#fff" : "var(--text-secondary)",
+                transition: "all 0.15s",
+                borderRight: "1px solid var(--border)",
+              }}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span style={{
+                  marginLeft: 6, background: tab === t.key ? "rgba(255,255,255,0.25)" : "var(--brand-blue-light)",
+                  color: tab === t.key ? "#fff" : "var(--brand-blue)",
+                  borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 800,
+                }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 60, textAlign: "center", color: "var(--text-muted)" }}>Loading appointments…</div>
+        ) : error ? (
+          <div style={{ padding: 20, color: "#dc2626", background: "#fef2f2", borderRadius: "var(--radius)" }}>{error}</div>
+        ) : displayed.length === 0 ? (
+          <SectionCard title="">
+            <div style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>
+                {tab === "pending" ? "🎉" : tab === "confirmed" ? "📅" : "✅"}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: "var(--text-secondary)" }}>
+                {tab === "pending" ? "No pending requests" : tab === "confirmed" ? "No confirmed appointments" : tab === "completed" ? "No completed appointments yet" : "No appointments found"}
+              </div>
+              <div style={{ fontSize: 13 }}>
+                {tab === "pending" ? "All appointment requests have been handled." : "They will appear here when available."}
+              </div>
+            </div>
+          </SectionCard>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {displayed.map((a) => {
+              const isPending   = a.status === "pending";
+              const isConfirmed = a.status === "confirmed";
+
+              return (
+                <div
+                  key={a.id}
+                  style={{
+                    background: "var(--surface)",
+                    border: isPending
+                      ? "1px solid #fcd34d"
+                      : isConfirmed
+                        ? "1px solid #86efac"
+                        : "1px solid var(--border)",
+                    borderRadius: "var(--radius-xl)",
+                    padding: "18px 22px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 18,
+                    flexWrap: "wrap",
+                    boxShadow: isPending ? "0 2px 12px rgba(251,191,36,0.12)" : "var(--shadow-sm)",
+                    transition: "box-shadow 0.2s",
+                  }}
+                >
+                  {/* Status indicator stripe */}
+                  <div style={{
+                    width: 4, height: 52, borderRadius: 2, flexShrink: 0,
+                    background: isPending ? "#f59e0b" : isConfirmed ? "#16a34a" : a.status === "completed" ? "var(--brand-blue)" : "#94a3b8",
+                  }} />
+
+                  {/* Avatar + patient info */}
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 180 }}>
+                    <Avatar name="Patient" size={42} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                        Patient #{a.patient_id.slice(0, 8).toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {a.type.replace(/_/g, " ")}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Date / Time */}
+                  <div style={{ minWidth: 140 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                      {fmtDate(a.scheduled_at)}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                      {fmtTime(a.scheduled_at)} · {a.duration_min} min
+                    </div>
+                  </div>
+
+                  {/* Badge */}
+                  <Badge variant={STATUS_VARIANT[a.status] ?? "blue"}>
+                    {a.status}
+                  </Badge>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+                    {isPending && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleConfirm(a.id)}
+                        disabled={confirming === a.id}
+                        style={{ minWidth: 90 }}
+                      >
+                        {confirming === a.id ? "Confirming…" : "✓ Confirm"}
+                      </button>
+                    )}
+
+                    {isConfirmed && (
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: "#dcfce7", color: "#15803d", border: "none", fontWeight: 700 }}
+                        onClick={() => handleComplete(a.id)}
+                        disabled={completing === a.id}
+                      >
+                        {completing === a.id ? "Saving…" : "Mark Complete"}
+                      </button>
+                    )}
+
+                    {/* Message patient */}
+                    {(isPending || isConfirmed || a.status === "completed") && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleMessage(a.patient_id, a.id)}
+                        disabled={messaging === a.id}
+                        title="Message this patient"
+                      >
+                        {messaging === a.id ? "…" : "💬 Message"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
