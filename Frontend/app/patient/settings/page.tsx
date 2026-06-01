@@ -53,18 +53,8 @@ export default function PatientSettingsPage() {
             </form>
           </SettingsSection>
 
-          {/* Notifications */}
-          <SettingsSection title="Notification Preferences">
-            <SettingToggle label="Email Notifications" description="Receive appointment reminders and scan results via email." defaultChecked={true} />
-            <SettingToggle label="SMS Notifications" description="Get text alerts for upcoming appointments." defaultChecked={true} />
-            <SettingToggle label="Report Ready Alerts" description="Notify me when my AI diagnosis report is available." defaultChecked={true} />
-            <SettingToggle label="Dentist Messages" description="Notify me when a dentist sends a message." defaultChecked={true} />
-            <SettingToggle label="Promotional Updates" description="Receive news, tips, and offers from Teledent AI." defaultChecked={false} />
-          </SettingsSection>
-
           {/* Privacy */}
           <SettingsSection title="Privacy & Security">
-            <SettingToggle label="Two-Factor Authentication" description="Add an extra layer of security to your account." defaultChecked={false} />
             <SettingToggle label="Data Sharing with Dentists" description="Allow assigned dentists to view your scan history." defaultChecked={true} />
             <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
               <div><label className="label">Current Password</label><input className="input" type="password" placeholder="••••••••" /></div>
@@ -74,7 +64,7 @@ export default function PatientSettingsPage() {
           </SettingsSection>
 
           {/* Danger Zone */}
-          <SettingsSection title="Danger Zone">
+          <SettingsSection title="Delete My Account">
             <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Delete Account</div>

@@ -189,7 +189,19 @@ def list_scans(db: Session, user_id: str, role: str, page: int, limit: int):
             q = q.filter(Scan.patient_id == patient.id)
         else:
             return {"data": [], "total": 0, "page": page, "limit": limit, "pages": 0}
-    # dentist and admin see all scans
+    elif role == "dentist":
+        from app.models.dentist import Dentist
+        from app.models.appointment import Appointment
+        dentist = db.query(Dentist).filter(Dentist.user_id == user_id).first()
+        if dentist:
+            linked_patient_ids = [
+                a.patient_id for a in
+                db.query(Appointment).filter(Appointment.dentist_id == dentist.id).all()
+            ]
+            q = q.filter(Scan.patient_id.in_(linked_patient_ids))
+        else:
+            return {"data": [], "total": 0, "page": page, "limit": limit, "pages": 0}
+    # admin sees all scans
     q = q.order_by(Scan.created_at.desc())
     return paginate(q, page, limit, schema=None)
 

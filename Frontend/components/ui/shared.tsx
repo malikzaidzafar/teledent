@@ -10,7 +10,6 @@ interface StatCardProps {
 export function StatCard({ icon, iconBg, value, label, change, changePositive }: StatCardProps) {
   return (
     <div className="stat-card">
-      <div className="stat-icon" style={{ background: iconBg }}>{icon}</div>
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
       {change && (

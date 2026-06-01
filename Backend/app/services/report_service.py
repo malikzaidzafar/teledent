@@ -157,8 +157,10 @@ def _generate_and_store_pdf(db: Session, report: Report, scan=None, analysis=Non
         print(traceback.format_exc())
 
 
-def list_reports(db: Session, user_id: str, role: str, page: int, limit: int):
+def list_reports(db: Session, user_id: str, role: str, page: int, limit: int, scan_id: str = None):
     q = db.query(Report)
+    if scan_id:
+        q = q.filter(Report.scan_id == scan_id)
     if role == "patient":
         patient = db.query(Patient).filter(Patient.user_id == user_id).first()
         if patient:

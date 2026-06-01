@@ -31,8 +31,8 @@ class UpdateReportIn(BaseModel):
 
 
 @router.get("")
-def list_reports(page: int = Query(1), limit: int = Query(20), current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return report_service.list_reports(db, str(current_user.id), current_user.role, page, limit)
+def list_reports(page: int = Query(1), limit: int = Query(20), scan_id: Optional[str] = Query(None), current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return report_service.list_reports(db, str(current_user.id), current_user.role, page, limit, scan_id=scan_id)
 
 
 @router.get("/{report_id}")

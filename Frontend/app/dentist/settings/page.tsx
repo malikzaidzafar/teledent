@@ -36,7 +36,7 @@ export default function DentistSettingsPage() {
     <AppLayout role="dentist" pageTitle="Settings">
       <PageHeader title="Settings" subtitle="Manage your account preferences and clinic details." />
       <div className="page-body">
-        <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
 
           {/* Profile */}
           <SettingsSection title="Account Information">
@@ -85,7 +85,6 @@ export default function DentistSettingsPage() {
 
           {/* Security */}
           <SettingsSection title="Security">
-            <SettingToggle label="Two-Factor Authentication" description="Secure your account with an authenticator app." defaultChecked={false} />
             <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
               <div><label className="label">Current Password</label><input className="input" type="password" placeholder="••••••••" /></div>
               <div><label className="label">New Password</label><input className="input" type="password" placeholder="At least 8 characters" /></div>

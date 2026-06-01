@@ -47,7 +47,7 @@ export default function DentistDashboardPage() {
             {scansLoading ? (
               <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Loading cases…</div>
             ) : pendingScans.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>All caught up! No pending cases. </div>
+              <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>All caught up! No pending cases.</div>
             ) : (
               <div className="table-scroll-wrapper">
                 <table className="data-table">

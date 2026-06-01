@@ -81,7 +81,7 @@ export default function DentistCasesPage() {
           <SectionCard title="">
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
               {tab === "pending"
-                ? "🎉 No pending cases — all caught up!"
+                ? "No pending cases — all caught up!"
                 : "No reviewed cases yet."}
             </div>
           </SectionCard>
@@ -125,7 +125,7 @@ export default function DentistCasesPage() {
                     {s.ai_result ? (
                       <>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>
-                          {findings === 0 ? "✅ No findings" : `${findings} finding${findings > 1 ? "s" : ""} detected`}
+                          {findings === 0 ? "No findings" : `${findings} finding${findings > 1 ? "s" : ""} detected`}
                         </div>
                         {s.ai_result.top_condition && findings > 0 && (
                           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -142,10 +142,10 @@ export default function DentistCasesPage() {
                   {/* Right: badge + action */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <Badge variant={s.dentist_reviewed ? "success" : "warning"}>
-                      {s.dentist_reviewed ? "✓ Reviewed" : "⏳ Needs Review"}
+                      {s.dentist_reviewed ? "Reviewed" : "Needs Review"}
                     </Badge>
                     <Link
-                      href={`/patient/report?scan_id=${s.id}`}
+                      href={`/dentist/cases/${s.id}`}
                       className={`btn btn-sm ${s.dentist_reviewed ? "btn-ghost" : "btn-primary"}`}
                     >
                       {s.dentist_reviewed ? "View" : "Review & Add Notes"}
