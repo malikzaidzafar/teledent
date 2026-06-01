@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Avatar, SectionCard } from "@/components/ui/shared";
@@ -28,7 +28,7 @@ interface ConvMeta {
   unread: number;
 }
 
-export default function DentistMessagesPage() {
+function DentistMessagesInner() {
   const { user, loading: authLoading } = useRequireAuth("dentist");
   const searchParams = useSearchParams();
   const [convMetas, setConvMetas] = useState<ConvMeta[]>([]);
@@ -355,5 +355,13 @@ export default function DentistMessagesPage() {
         </div>
       )}
     </AppLayout>
+  );
+}
+
+export default function DentistMessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <DentistMessagesInner />
+    </Suspense>
   );
 }

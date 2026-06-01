@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Avatar, SectionCard } from "@/components/ui/shared";
@@ -29,7 +29,7 @@ interface ConvMeta {
   unread: number;
 }
 
-export default function PatientMessagesPage() {
+function PatientMessagesInner() {
   const { user, loading: authLoading } = useRequireAuth("patient");
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -435,5 +435,13 @@ export default function PatientMessagesPage() {
         </div>
       )}
     </AppLayout>
+  );
+}
+
+export default function PatientMessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <PatientMessagesInner />
+    </Suspense>
   );
 }
