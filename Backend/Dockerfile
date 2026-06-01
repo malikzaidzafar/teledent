@@ -1,22 +1,22 @@
 FROM python:3.11-slim
 
-# System deps:
+# System deps — compatible with Debian Trixie (python:3.11-slim base):
+#   - libgl1-mesa-glx was renamed to libgl1 in Trixie
+#   - libgdk-pixbuf2.0-0 was renamed to libgdk-pixbuf-xlib-2.0-0 in Trixie
 #   - WeasyPrint needs: libpango, libcairo, libgdk-pixbuf, libffi, shared-mime-info
-#   - OpenCV (headless) needs: libgl1-mesa-glx, libglib2.0-0
+#   - OpenCV (headless) needs: libgl1, libglib2.0-0
 #   - psycopg2 needs: libpq-dev, gcc
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
-    # WeasyPrint rendering deps
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libcairo2 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
     libffi-dev \
     shared-mime-info \
     fonts-liberation \
-    # OpenCV headless deps
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
