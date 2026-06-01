@@ -1,16 +1,26 @@
 FROM python:3.11-slim
 
-# System deps for Playwright + OpenCV
-RUN apt-get update && apt-get install -y \
+# System deps:
+#   - WeasyPrint needs: libpango, libcairo, libgdk-pixbuf, libffi, shared-mime-info
+#   - OpenCV (headless) needs: libgl1-mesa-glx, libglib2.0-0
+#   - psycopg2 needs: libpq-dev, gcc
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
+    # WeasyPrint rendering deps
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    fonts-liberation \
+    # OpenCV headless deps
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    wget \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,9 +28,6 @@ WORKDIR /app
 # Copy and install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright browsers
-RUN playwright install chromium && playwright install-deps chromium
 
 # Copy app code
 COPY . .

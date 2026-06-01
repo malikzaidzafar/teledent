@@ -71,7 +71,6 @@ def _generate_and_store_pdf(db: Session, report: Report, scan=None, analysis=Non
     same thread-pool as the event loop — asyncio.run() would conflict there).
     """
     try:
-        import asyncio
         import concurrent.futures
         from app.services.pdf_service import generate_report_pdf, upload_pdf_to_cloudinary
 
@@ -135,15 +134,10 @@ def _generate_and_store_pdf(db: Session, report: Report, scan=None, analysis=Non
             "annotated_image_url": annotated_image_url,
         }
 
-        # Run the async PDF generator in a brand-new event loop inside a
-        # dedicated thread. This is safe from both sync request handlers and
-        # FastAPI BackgroundTasks (which share the main event loop).
+        # Run the synchronous WeasyPrint PDF generator in a dedicated thread
+        # (WeasyPrint does file I/O internally so we keep it off the main thread)
         def _run_pdf():
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(generate_report_pdf(report_data))
-            finally:
-                loop.close()
+            return generate_report_pdf(report_data)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             pdf_bytes = pool.submit(_run_pdf).result(timeout=60)
@@ -169,17 +163,21 @@ def list_reports(db: Session, user_id: str, role: str, page: int, limit: int, sc
             return {"data": [], "total": 0, "page": page, "limit": limit, "pages": 0}
     elif role == "dentist":
         from app.models.dentist import Dentist
-        from app.models.appointment import Appointment
+        from app.models.appointment import Appointment, AppointmentStatus
         dentist = db.query(Dentist).filter(Dentist.user_id == user_id).first()
         if dentist:
-            # Dentist sees reports they authored OR auto-reports for their patients
+            # Dentist only sees reports for patients with an ACTIVE appointment (not cancelled)
+            active_statuses = [AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]
             linked_patient_ids = [
                 a.patient_id for a in
-                db.query(Appointment).filter(Appointment.dentist_id == dentist.id).all()
+                db.query(Appointment).filter(
+                    Appointment.dentist_id == dentist.id,
+                    Appointment.status.in_(active_statuses),
+                ).all()
             ]
             q = q.filter(
                 (Report.dentist_id == dentist.id) |
-                ((Report.is_auto_generated == True) & (Report.patient_id.in_(linked_patient_ids)))
+                (Report.patient_id.in_(linked_patient_ids))
             )
         else:
             return {"data": [], "total": 0, "page": page, "limit": limit, "pages": 0}
@@ -197,13 +195,15 @@ def get_report(db: Session, report_id: str, current_user) -> Report:
             raise ForbiddenException()
     elif current_user.role == "dentist":
         from app.models.dentist import Dentist
-        from app.models.appointment import Appointment
+        from app.models.appointment import Appointment, AppointmentStatus
         dentist = db.query(Dentist).filter(Dentist.user_id == current_user.id).first()
         if dentist:
             is_author = report.dentist_id and str(report.dentist_id) == str(dentist.id)
+            active_statuses = [AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]
             has_link = db.query(Appointment).filter(
                 Appointment.dentist_id == dentist.id,
                 Appointment.patient_id == report.patient_id,
+                Appointment.status.in_(active_statuses),
             ).first()
             if not is_author and not has_link:
                 raise ForbiddenException()
@@ -213,7 +213,7 @@ def get_report(db: Session, report_id: str, current_user) -> Report:
 def update_report(db: Session, report_id: str, dentist_user_id: str, data: dict) -> Report:
     """Dentist enriches an existing report (auto-generated or their own)."""
     from app.models.dentist import Dentist
-    from app.models.appointment import Appointment
+    from app.models.appointment import Appointment, AppointmentStatus
 
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
@@ -225,9 +225,11 @@ def update_report(db: Session, report_id: str, dentist_user_id: str, data: dict)
         raise ForbiddenException()
 
     is_author = report.dentist_id and str(report.dentist_id) == str(dentist.id)
+    active_statuses = [AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]
     has_link = db.query(Appointment).filter(
         Appointment.dentist_id == dentist.id,
         Appointment.patient_id == report.patient_id,
+        Appointment.status.in_(active_statuses),
     ).first()
     is_auto_claimable = report.is_auto_generated and report.dentist_id is None
 

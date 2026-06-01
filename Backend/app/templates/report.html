@@ -18,20 +18,20 @@
     .info-label { font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
     .info-value { font-weight: 700; font-size: 13px; color: #0f172a; }
     .risk-banner { border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; }
-    .risk-banner.none, .risk-banner.low { background: #f0fdf4; border: 1px solid #86efac; }
-    .risk-banner.moderate { background: #fffbeb; border: 1px solid #fcd34d; }
-    .risk-banner.high { background: #fef2f2; border: 1px solid #fca5a5; }
+    .risk-banner-none, .risk-banner-low { background: #f0fdf4; border: 1px solid #86efac; }
+    .risk-banner-moderate { background: #fffbeb; border: 1px solid #fcd34d; }
+    .risk-banner-high { background: #fef2f2; border: 1px solid #fca5a5; }
     .risk-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
-    .risk-dot.none, .risk-dot.low { background: #16a34a; }
-    .risk-dot.moderate { background: #d97706; }
-    .risk-dot.high { background: #dc2626; }
+    .risk-dot-none, .risk-dot-low { background: #16a34a; }
+    .risk-dot-moderate { background: #d97706; }
+    .risk-dot-high { background: #dc2626; }
     .risk-label { font-size: 14px; font-weight: 800; }
-    .risk-label.none, .risk-label.low { color: #15803d; }
-    .risk-label.moderate { color: #b45309; }
-    .risk-label.high { color: #b91c1c; }
+    .risk-label-none, .risk-label-low { color: #15803d; }
+    .risk-label-moderate { color: #b45309; }
+    .risk-label-high { color: #b91c1c; }
     .risk-urgency { font-size: 12px; color: #475569; margin-top: 2px; }
-    .image-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
-    .image-box { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    .image-row { display: flex; gap: 14px; margin-bottom: 20px; }
+    .image-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
     .image-box img { width: 100%; height: 200px; object-fit: contain; background: #0f172a; display: block; }
     .image-caption { padding: 6px 10px; font-size: 11px; color: #64748b; font-weight: 600; background: #f8fafc; border-top: 1px solid #e2e8f0; }
     .summary-box { background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 0 8px 8px 0; padding: 13px 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.75; color: #0c4a6e; }
@@ -43,19 +43,23 @@
     .badge-low { background: #dcfce7; color: #15803d; }
     .badge-moderate { background: #fef3c7; color: #b45309; }
     .badge-high { background: #fee2e2; color: #b91c1c; }
-    .conf-wrap { display: flex; align-items: center; gap: 7px; }
-    .conf-bar { width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .conf-bar { display: inline-block; width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; vertical-align: middle; margin-right: 6px; overflow: hidden; }
     .conf-fill { height: 100%; background: #1d6fec; border-radius: 3px; }
     .notes-box { background: #f8fafc; border-left: 4px solid #94a3b8; padding: 13px 16px; border-radius: 0 6px 6px 0; font-style: italic; color: #475569; line-height: 1.75; margin-bottom: 18px; }
     .actions-list { list-style: none; margin-bottom: 18px; }
-    .actions-list li { padding: 5px 0 5px 22px; position: relative; font-size: 12px; color: #334155; }
+    .actions-list li { padding: 5px 0 5px 20px; position: relative; font-size: 12px; color: #334155; }
     .actions-list li::before { content: "✓"; position: absolute; left: 0; color: #16a34a; font-weight: 900; }
+    .diagnosis-box { background: #eff6ff; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; border: 1px solid #bfdbfe; }
+    .diagnosis-label { font-size: 10px; font-weight: 700; color: #1d6fec; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+    .diagnosis-value { font-size: 15px; font-weight: 800; color: #1e293b; }
     .disclaimer { margin-top: 28px; padding: 12px 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; font-size: 11px; color: #92400e; line-height: 1.6; }
     .footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+    .no-findings { padding: 14px; background: #f0fdf4; border-radius: 8px; color: #15803d; font-weight: 600; margin-bottom: 18px; }
   </style>
 </head>
 <body>
 
+  <!-- Header -->
   <div class="header">
     <div>
       <div class="logo">Teledent<span>AI</span></div>
@@ -70,8 +74,9 @@
     </div>
   </div>
 
-  {% if is_auto_generated %}<span class="ai-badge">⚡ AI-Generated · YOLOv8 + Gemini</span>{% endif %}
+  {% if is_auto_generated %}<span class="ai-badge">AI-Generated · YOLOv8 + Gemini</span>{% endif %}
 
+  <!-- Patient Info -->
   <div class="section-title">Patient Information</div>
   <div class="info-grid">
     <div class="info-item"><div class="info-label">Patient</div><div class="info-value">{{ patient_name }}</div></div>
@@ -79,30 +84,46 @@
     <div class="info-item"><div class="info-label">Overall Risk</div><div class="info-value" style="text-transform:capitalize">{{ (ai_explanation.overall_risk if ai_explanation else 'N/A') }}</div></div>
   </div>
 
+  <!-- Risk Banner -->
   {% set risk = ai_explanation.overall_risk if ai_explanation else 'none' %}
   {% set urgency_key = ai_explanation.urgency if ai_explanation else 'monitor' %}
-  {% set urgency_text = {'monitor': 'Monitor and mention at your next regular checkup.', 'schedule_soon': 'Schedule a dental appointment soon.', 'see_dentist_this_week': 'See a dentist within the week.', 'urgent': 'Seek dental attention as soon as possible.'} %}
-  <div class="risk-banner {{ risk }}">
-    <div class="risk-dot {{ risk }}"></div>
+  {% set urgency_map = {'monitor': 'Monitor and mention at your next regular checkup.', 'schedule_soon': 'Schedule a dental appointment soon.', 'see_dentist_this_week': 'See a dentist within the week.', 'urgent': 'Seek dental attention as soon as possible.'} %}
+  <div class="risk-banner risk-banner-{{ risk }}">
+    <div class="risk-dot risk-dot-{{ risk }}"></div>
     <div>
-      <div class="risk-label {{ risk }}">{% if risk == 'none' or risk == 'low' %}{% if risk == 'none' %}All Clear{% else %}Low Risk{% endif %}{% elif risk == 'moderate' %}Moderate Risk{% else %}High Risk{% endif %}</div>
-      <div class="risk-urgency">{{ urgency_text.get(urgency_key, '') }}</div>
+      <div class="risk-label risk-label-{{ risk }}">
+        {% if risk == 'none' %}All Clear
+        {% elif risk == 'low' %}Low Risk
+        {% elif risk == 'moderate' %}Moderate Risk
+        {% else %}High Risk{% endif %}
+      </div>
+      <div class="risk-urgency">{{ urgency_map.get(urgency_key, '') }}</div>
     </div>
   </div>
 
+  <!-- Final Diagnosis -->
+  <div class="section-title">Final Diagnosis</div>
+  <div class="diagnosis-box">
+    <div class="diagnosis-label">AI-Assisted Clinical Diagnosis</div>
+    <div class="diagnosis-value">{{ final_diagnosis }}</div>
+  </div>
+
+  <!-- Scan Images -->
   {% if original_image_url or annotated_image_url %}
   <div class="section-title">Scan Images</div>
   <div class="image-row">
-    {% if original_image_url %}<div class="image-box"><img src="{{ original_image_url }}" alt="Original" /><div class="image-caption">📷 Original Scan</div></div>{% endif %}
-    {% if annotated_image_url %}<div class="image-box"><img src="{{ annotated_image_url }}" alt="Annotated" /><div class="image-caption">🔍 AI Detection (YOLOv8)</div></div>{% endif %}
+    {% if original_image_url %}<div class="image-box"><img src="{{ original_image_url }}" alt="Original" /><div class="image-caption">Original Scan</div></div>{% endif %}
+    {% if annotated_image_url %}<div class="image-box"><img src="{{ annotated_image_url }}" alt="Annotated" /><div class="image-caption">AI Detection (YOLOv8)</div></div>{% endif %}
   </div>
   {% endif %}
 
+  <!-- AI Summary -->
   {% if ai_explanation and ai_explanation.patient_summary %}
   <div class="section-title">AI Summary</div>
   <div class="summary-box">{{ ai_explanation.patient_summary }}</div>
   {% endif %}
 
+  <!-- Findings Table -->
   <div class="section-title">Detected Findings ({{ findings | length }})</div>
   {% if findings %}
   <table>
@@ -111,7 +132,10 @@
       {% for f in findings %}
       <tr>
         <td style="font-weight:700">{{ f.condition }}</td>
-        <td><div class="conf-wrap"><div class="conf-bar"><div class="conf-fill" style="width:{{ ((f.confidence * 100)|round|int) }}%"></div></div><span>{{ (f.confidence * 100)|round|int }}%</span></div></td>
+        <td>
+          <div class="conf-bar"><div class="conf-fill" style="width:{{ ((f.confidence * 100)|round|int) }}%"></div></div>
+          {{ (f.confidence * 100)|round|int }}%
+        </td>
         <td><span class="badge badge-{{ f.severity }}">{{ f.severity }}</span></td>
         <td style="color:#475569">{{ f.gemini_explanation }}</td>
         <td>{{ f.recommendation }}</td>
@@ -120,112 +144,39 @@
     </tbody>
   </table>
   {% else %}
-  <div style="padding:14px;background:#f0fdf4;border-radius:8px;color:#15803d;font-weight:600;margin-bottom:18px">✅ No significant dental conditions were detected.</div>
+  <div class="no-findings">No significant dental conditions were detected.</div>
   {% endif %}
 
+  <!-- Dentist Notes -->
   {% if dentist_notes %}
   <div class="section-title">Dentist's Clinical Notes</div>
   <div class="notes-box">{{ dentist_notes }}</div>
   {% endif %}
 
+  <!-- Recommended Actions -->
   {% if recommended_actions %}
   <div class="section-title">Recommended Actions</div>
   <ul class="actions-list">{% for action in recommended_actions %}<li>{{ action }}</li>{% endfor %}</ul>
   {% endif %}
 
+  <!-- Follow-up -->
   {% if follow_up_date %}
   <div class="info-grid" style="grid-template-columns:1fr 2fr;margin-top:8px">
     <div class="info-item"><div class="info-label">Follow-Up Date</div><div class="info-value">{{ follow_up_date }}</div></div>
   </div>
   {% endif %}
 
+  <!-- Disclaimer -->
   <div class="disclaimer">
-    ⚠️ <strong>Disclaimer:</strong> This report is generated by an AI system (YOLOv8 + Google Gemini) and is for informational purposes only. It is <strong>not a substitute for professional dental diagnosis or treatment.</strong> Consult a licensed dentist before making any healthcare decisions.
+    <strong>Disclaimer:</strong> This report is generated by an AI system (YOLOv8 + Google Gemini) and is for informational purposes only.
+    It is <strong>not a substitute for professional dental diagnosis or treatment.</strong>
+    Consult a licensed dentist before making any healthcare decisions.
   </div>
 
   <div class="footer">
     <div>Generated by Teledent AI · Confidential</div>
     <div>© {{ created_at[:4] if created_at else '2026' }} Teledent AI. All rights reserved.</div>
   </div>
-</body>
-</html>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #1e293b; background: #fff; padding: 40px; }
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #135bec; padding-bottom: 20px; margin-bottom: 28px; }
-    .logo { font-size: 22px; font-weight: 900; color: #135bec; letter-spacing: -0.03em; }
-    .logo span { color: #64748b; }
-    .report-meta { text-align: right; font-size: 12px; color: #64748b; }
-    .section-title { font-size: 14px; font-weight: 700; color: #135bec; text-transform: uppercase; letter-spacing: 0.06em; margin: 24px 0 12px; border-left: 4px solid #135bec; padding-left: 10px; }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-    .info-item { background: #f8fafc; border-radius: 6px; padding: 10px 14px; }
-    .info-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
-    .info-value { font-weight: 600; font-size: 13px; }
-    .diagnosis-box { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 8px; padding: 18px 22px; margin-bottom: 20px; }
-    .diagnosis-label { font-size: 11px; font-weight: 700; color: #135bec; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
-    .diagnosis-value { font-size: 16px; font-weight: 800; color: #1e293b; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th { background: #f1f5f9; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; text-align: left; }
-    td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
-    tr:last-child td { border-bottom: none; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: capitalize; }
-    .badge-warning { background: #fef3c7; color: #d97706; }
-    .badge-danger  { background: #fee2e2; color: #dc2626; }
-    .badge-success { background: #dcfce7; color: #16a34a; }
-    .notes-box { background: #f8fafc; border-left: 4px solid #94a3b8; padding: 14px 18px; border-radius: 0 6px 6px 0; font-style: italic; color: #475569; line-height: 1.7; margin-bottom: 20px; }
-    .actions-list { list-style: none; }
-    .actions-list li { padding: 6px 0; padding-left: 20px; position: relative; font-size: 12px; color: #334155; }
-    .actions-list li::before { content: ""; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
-    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
-    .confidence-bar { display: inline-block; width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; vertical-align: middle; margin-right: 6px; overflow: hidden; }
-    .confidence-fill { height: 100%; background: #135bec; border-radius: 3px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="logo">Teledent<span>AI</span></div>
-      <div style="font-size:11px;color:#64748b;margin-top:3px">AI-Powered Dental Diagnostics Platform</div>
-    </div>
-    <div class="report-meta">
-      <div style="font-weight:700;font-size:13px;margin-bottom:3px">DIAGNOSIS REPORT</div>
-      <div>Report ID: {{ report_id[:8].upper() }}</div>
-      <div>Generated: {{ created_at[:10] if created_at else 'N/A' }}</div>
-    </div>
-  </div>
 
-  <div class="section-title">Final Diagnosis</div>
-  <div class="diagnosis-box">
-    <div class="diagnosis-label">AI-Assisted Clinical Diagnosis</div>
-    <div class="diagnosis-value">{{ final_diagnosis }}</div>
-  </div>
-
-  {% if dentist_notes %}
-  <div class="section-title">Dentist's Clinical Notes</div>
-  <div class="notes-box">{{ dentist_notes }}</div>
-  {% endif %}
-
-  {% if recommended_actions %}
-  <div class="section-title">Recommended Actions</div>
-  <ul class="actions-list">
-    {% for action in recommended_actions %}
-    <li>{{ action }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if follow_up_date %}
-  <div class="info-grid" style="margin-top:16px">
-    <div class="info-item">
-      <div class="info-label">Follow-Up Date</div>
-      <div class="info-value">{{ follow_up_date }}</div>
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="footer">
-    <div>This report is generated by Teledent AI and reviewed by a licensed dental professional.</div>
-    <div>© {{ created_at[:4] if created_at else '2026' }} Teledent AI. Confidential.</div>
-  </div>
 </body>
 </html>

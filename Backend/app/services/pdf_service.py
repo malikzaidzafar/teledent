@@ -1,6 +1,6 @@
 """
-services/pdf_service.py — Playwright-based PDF generation for diagnosis reports.
-Run inside a Celery task (NOT in the request/response cycle).
+services/pdf_service.py — WeasyPrint-based PDF generation for diagnosis reports.
+WeasyPrint is a pure-Python HTML/CSS → PDF converter; no browser installation required.
 """
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -14,17 +14,13 @@ def _render_html(template_name: str, context: dict) -> str:
     return env.get_template(template_name).render(**context)
 
 
-async def generate_report_pdf(report_data: dict) -> bytes:
+def generate_report_pdf(report_data: dict) -> bytes:
+    """Render the Jinja2 report template and convert to PDF with WeasyPrint.
+    This is a synchronous function — safe to call from a ThreadPoolExecutor.
+    """
     html = _render_html("report.html", report_data)
-    from playwright.async_api import async_playwright
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
-        )
-        page = await browser.new_page()
-        await page.set_content(html, wait_until="networkidle")
-        pdf_bytes = await page.pdf(format="A4", print_background=True)
-        await browser.close()
+    from weasyprint import HTML
+    pdf_bytes = HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf()
     return pdf_bytes
 
 
