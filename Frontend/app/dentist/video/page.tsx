@@ -4,10 +4,10 @@ import { PageHeader } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { videoApi, reportApi, type CreateReportPayload } from "@/lib/api";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function DentistVideoPage() {
+function DentistVideoPageInner() {
   const { loading: authLoading } = useRequireAuth("dentist");
   const searchParams = useSearchParams();
   const sessionIdParam = searchParams.get("session_id");
@@ -142,5 +142,13 @@ export default function DentistVideoPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function DentistVideoPage() {
+  return (
+    <Suspense>
+      <DentistVideoPageInner />
+    </Suspense>
   );
 }

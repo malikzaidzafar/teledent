@@ -4,10 +4,10 @@ import { PageHeader, Avatar, Badge } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { dentistApi, appointmentApi, type DentistSummary } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function BookAppointmentPage() {
+function BookAppointmentPageInner() {
   useRequireAuth("patient");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -142,5 +142,13 @@ export default function BookAppointmentPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function BookAppointmentPage() {
+  return (
+    <Suspense>
+      <BookAppointmentPageInner />
+    </Suspense>
   );
 }

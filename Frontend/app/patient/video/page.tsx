@@ -4,10 +4,10 @@ import { PageHeader } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { videoApi, appointmentApi, type Appointment } from "@/lib/api";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function VideoConsultationPage() {
+function VideoConsultationPageInner() {
   const { loading: authLoading } = useRequireAuth("patient");
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get("appointment_id");
@@ -169,5 +169,13 @@ export default function VideoConsultationPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function VideoConsultationPage() {
+  return (
+    <Suspense>
+      <VideoConsultationPageInner />
+    </Suspense>
   );
 }
