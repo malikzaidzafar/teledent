@@ -27,8 +27,8 @@ interface ConvMeta {
   unread: number;
 }
 
-export default function DentistMessagesPage() {
-  const { user, loading: authLoading } = useRequireAuth("dentist");
+export default function PatientMessagesPage() {
+  const { user, loading: authLoading } = useRequireAuth("patient");
   const [convMetas, setConvMetas] = useState<ConvMeta[]>([]);
   const [activeConv, setActiveConv] = useState<ConversationOut | null>(null);
   const [activeOtherName, setActiveOtherName] = useState("");
@@ -36,10 +36,13 @@ export default function DentistMessagesPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Scheduled video call state
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoDate, setVideoDate] = useState("");
   const [videoTime, setVideoTime] = useState("");
   const [videoRequestSent, setVideoRequestSent] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -55,12 +58,12 @@ export default function DentistMessagesPage() {
   async function loadConversations() {
     setLoading(true);
     try {
-      const convs = await messagesApi.listConversations();      const metas = await Promise.all(
+      const convs = await messagesApi.listConversations();
+      const metas = await Promise.all(
         convs.map(async (conv) => {
           const msgs = await messagesApi.listMessages(conv.id).catch(() => [] as MessageOut[]);
           const unread = msgs.filter(m => m.sender_id !== user?.id && !m.is_read).length;
-          const otherId = conv.patient_id;
-          const otherName = `Patient ${otherId.slice(0, 6).toUpperCase()}`;
+          const otherName = `Dr. ${conv.dentist_id.slice(0, 6).toUpperCase()}`;
           return { conv, otherName, lastMsg: msgs[msgs.length - 1], unread };
         })
       );
@@ -81,23 +84,6 @@ export default function DentistMessagesPage() {
     pollRef.current = setInterval(() => loadMessages(meta.conv.id), 5000);
   }
 
-  async function sendVideoRequest() {
-    if (!videoDate || !videoTime || !activeConv) return;
-    const dateTimeStr = `${videoDate} at ${videoTime}`;
-    const text = `Video Call Request: I would like to schedule a video consultation on ${dateTimeStr}. Please confirm if this works for you.`;
-    setSending(true);
-    try {
-      const msg = await messagesApi.sendMessage(activeConv.id, text);
-      setMessages(prev => [...prev, msg]);
-      loadConversations();
-    } catch {}
-    setSending(false);
-    setShowVideoModal(false);
-    setVideoDate("");
-    setVideoTime("");
-    setVideoRequestSent(true);
-  }
-
   async function loadMessages(convId: string) {
     try {
       const msgs = await messagesApi.listMessages(convId);
@@ -105,50 +91,85 @@ export default function DentistMessagesPage() {
     } catch {}
   }
 
-  async function sendMessage() {
-    if (!input.trim() || !activeConv || sending) return;
+  async function sendMessage(text?: string) {
+    const msg = text ?? input.trim();
+    if (!msg || !activeConv || sending) return;
     setSending(true);
     try {
-      const msg = await messagesApi.sendMessage(activeConv.id, input.trim());
-      setMessages(prev => [...prev, msg]);
-      setInput("");
+      const sent = await messagesApi.sendMessage(activeConv.id, msg);
+      setMessages(prev => [...prev, sent]);
+      if (!text) setInput("");
       loadConversations();
     } catch {}
     setSending(false);
   }
 
+  async function sendVideoRequest() {
+    if (!videoDate || !videoTime || !activeConv) return;
+    const dateTimeStr = `${videoDate} at ${videoTime}`;
+    const requestMsg = `Video Call Request: I would like to schedule a video consultation on ${dateTimeStr}. Please let me know if this works for you.`;
+    await sendMessage(requestMsg);
+    setShowVideoModal(false);
+    setVideoDate("");
+    setVideoTime("");
+    setVideoRequestSent(true);
+  }
+
   if (authLoading) return null;
 
+  // Min date = today for the date picker
+  const today = new Date().toISOString().split("T")[0];
+
   return (
-    <AppLayout role="dentist" pageTitle="Messages">
-      <PageHeader title="Messages" subtitle="Secure patient communication" />
+    <AppLayout role="patient" pageTitle="Messages">
+      <PageHeader title="Messages" subtitle="Chat securely with your dentist" />
       <div className="page-body">
         {loading ? (
-            <div style={{ textAlign: "center", padding: 60 }}>
-              <div style={{ color: "var(--text-muted)" }}>Loading conversations...</div>
-            </div>
-          ) : (
+          <div style={{ textAlign: "center", padding: 60 }}>
+            <div style={{ color: "var(--text-muted)" }}>Loading conversations...</div>
+          </div>
+        ) : (
           <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20, height: "calc(100vh - 180px)" }}>
+
             {/* Conversation List */}
             <SectionCard title={`Conversations (${convMetas.length})`}>
               <div style={{ overflowY: "auto" }}>
                 {convMetas.length === 0 && (
                   <div style={{ padding: 24, color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>
-                    No conversations yet.
+                    No conversations yet.<br />
+                    <span style={{ fontSize: 12 }}>Your dentist will start a conversation after your appointment.</span>
                   </div>
                 )}
                 {convMetas.map((meta) => (
-                  <div key={meta.conv.id} onClick={() => openConversation(meta)} style={{ padding: "14px 16px", borderBottom: "1px solid var(--surface-3)", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", background: activeConv?.id === meta.conv.id ? "var(--brand-blue-light)" : "transparent" }}>
+                  <div
+                    key={meta.conv.id}
+                    onClick={() => openConversation(meta)}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid var(--surface-3)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      cursor: "pointer",
+                      background: activeConv?.id === meta.conv.id ? "var(--brand-blue-light)" : "transparent",
+                    }}
+                  >
                     <Avatar name={meta.otherName} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{meta.otherName}</span>
-                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{meta.lastMsg ? fmtTime(meta.lastMsg.sent_at) : ""}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                          {meta.lastMsg ? fmtTime(meta.lastMsg.sent_at) : ""}
+                        </span>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.lastMsg?.text ?? "No messages yet"}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {meta.lastMsg?.text ?? "No messages yet"}
+                      </div>
                     </div>
                     {meta.unread > 0 && (
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--brand-blue)", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{meta.unread}</div>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--brand-blue)", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {meta.unread}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -163,10 +184,12 @@ export default function DentistMessagesPage() {
                 </div>
               ) : (
                 <>
+                  {/* Chat Header */}
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
                     <Avatar name={activeOtherName} size={36} />
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{activeOtherName}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Your dentist</div>
                     </div>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
                       {videoRequestSent && (
@@ -174,25 +197,44 @@ export default function DentistMessagesPage() {
                           Video request sent
                         </span>
                       )}
+                      {/* Schedule Video Call */}
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => setShowVideoModal(true)}
                       >
                         Schedule Call
                       </button>
-                      <Link href="/dentist/video" className="btn btn-primary btn-sm">Video Call</Link>
+                      <Link href="/patient/video" className="btn btn-primary btn-sm">
+                        Join Video
+                      </Link>
                     </div>
                   </div>
 
+                  {/* Messages */}
                   <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                     {messages.length === 0 && (
-                      <div style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", marginTop: 40 }}>No messages yet. Start the conversation.</div>
+                      <div style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", marginTop: 40 }}>
+                        No messages yet. Start the conversation.
+                      </div>
                     )}
                     {messages.map((m) => {
                       const isMe = m.sender_id === user?.id;
+                      // Detect video request messages for special styling
+                      const isVideoRequest = m.text.startsWith("Video Call Request:");
                       return (
                         <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start" }}>
-                          <div style={{ maxWidth: "72%", background: isMe ? "var(--brand-blue)" : "var(--surface-3)", color: isMe ? "#fff" : "var(--text-primary)", borderRadius: "var(--radius-lg)", padding: "10px 14px", fontSize: 13, lineHeight: 1.6 }}>
+                          <div style={{
+                            maxWidth: "72%",
+                            background: isVideoRequest
+                              ? (isMe ? "#e8f4fd" : "#fef3c7")
+                              : (isMe ? "var(--brand-blue)" : "var(--surface-3)"),
+                            color: isVideoRequest ? "#1a1a2e" : (isMe ? "#fff" : "var(--text-primary)"),
+                            border: isVideoRequest ? "1px solid #93c5fd" : "none",
+                            borderRadius: "var(--radius-lg)",
+                            padding: "10px 14px",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}>
                             <p style={{ margin: 0 }}>{m.text}</p>
                             <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7, textAlign: "right" }}>{fmtClock(m.sent_at)}</div>
                           </div>
@@ -202,6 +244,7 @@ export default function DentistMessagesPage() {
                     <div ref={bottomRef} />
                   </div>
 
+                  {/* Input */}
                   <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
                     <input
                       className="input"
@@ -212,7 +255,7 @@ export default function DentistMessagesPage() {
                       onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       disabled={sending}
                     />
-                    <button className="btn btn-primary" onClick={sendMessage} disabled={sending || !input.trim()}>
+                    <button className="btn btn-primary" onClick={() => sendMessage()} disabled={sending || !input.trim()}>
                       {sending ? "Sending..." : "Send"}
                     </button>
                   </div>
@@ -220,28 +263,57 @@ export default function DentistMessagesPage() {
               )}
             </div>
           </div>
-          )}
-        </div>
+        )}
+      </div>
+
+      {/* Schedule Video Call Modal */}
       {showVideoModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--surface)", borderRadius: "var(--radius-lg)", padding: 32, width: 420, maxWidth: "90vw", boxShadow: "var(--shadow-lg)" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Schedule a Video Call</div>
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "var(--surface)", borderRadius: "var(--radius-lg)", padding: 32,
+            width: 420, maxWidth: "90vw", boxShadow: "var(--shadow-lg)",
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Request a Video Call</div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24 }}>
-              Suggest a date and time to the patient. A message will be sent in the chat — they can confirm or propose a different time.
+              Suggest a date and time to your dentist. A message will be sent in the chat — they can confirm or propose a different time.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}>Preferred Date</label>
-                <input type="date" className="input" style={{ width: "100%" }} min={new Date().toISOString().split("T")[0]} value={videoDate} onChange={e => setVideoDate(e.target.value)} />
+                <input
+                  type="date"
+                  className="input"
+                  style={{ width: "100%" }}
+                  min={today}
+                  value={videoDate}
+                  onChange={e => setVideoDate(e.target.value)}
+                />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}>Preferred Time</label>
-                <input type="time" className="input" style={{ width: "100%" }} value={videoTime} onChange={e => setVideoTime(e.target.value)} />
+                <input
+                  type="time"
+                  className="input"
+                  style={{ width: "100%" }}
+                  value={videoTime}
+                  onChange={e => setVideoTime(e.target.value)}
+                />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
-              <button className="btn btn-secondary" onClick={() => { setShowVideoModal(false); setVideoDate(""); setVideoTime(""); }}>Cancel</button>
-              <button className="btn btn-primary" disabled={!videoDate || !videoTime} onClick={sendVideoRequest}>Send Request</button>
+              <button className="btn btn-secondary" onClick={() => { setShowVideoModal(false); setVideoDate(""); setVideoTime(""); }}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!videoDate || !videoTime}
+                onClick={sendVideoRequest}
+              >
+                Send Request
+              </button>
             </div>
           </div>
         </div>

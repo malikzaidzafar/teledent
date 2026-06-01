@@ -41,11 +41,26 @@ def list_patients(db: Session, page: int, limit: int, status: str = None, search
     }
 
 
+def _dentist_has_appointment(db: Session, dentist_user_id: str, patient_id) -> bool:
+    """Return True if the dentist (identified by their user_id) has any appointment with this patient."""
+    from app.models.dentist import Dentist
+    from app.models.appointment import Appointment
+    dentist = db.query(Dentist).filter(Dentist.user_id == dentist_user_id).first()
+    if not dentist:
+        return False
+    return db.query(Appointment).filter(
+        Appointment.dentist_id == dentist.id,
+        Appointment.patient_id == patient_id,
+    ).first() is not None
+
+
 def get_patient(db: Session, patient_id: str, current_user) -> Patient:
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise NotFoundException("Patient", patient_id)
     if current_user.role == "patient" and str(patient.user_id) != str(current_user.id):
+        raise ForbiddenException()
+    if current_user.role == "dentist" and not _dentist_has_appointment(db, current_user.id, patient.id):
         raise ForbiddenException()
     return patient
 
@@ -68,15 +83,33 @@ def delete_patient(db: Session, patient_id: str):
 
 
 def get_patient_scans(db: Session, patient_id: str, current_user, page: int, limit: int):
+    if current_user.role == "patient":
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient or str(patient.user_id) != str(current_user.id):
+            raise ForbiddenException()
+    elif current_user.role == "dentist" and not _dentist_has_appointment(db, current_user.id, patient_id):
+        raise ForbiddenException()
     q = db.query(Scan).filter(Scan.patient_id == patient_id).order_by(Scan.created_at.desc())
     return paginate(q, page, limit, schema=None)
 
 
-def get_patient_appointments(db: Session, patient_id: str, page: int, limit: int):
+def get_patient_appointments(db: Session, patient_id: str, current_user, page: int, limit: int):
+    if current_user.role == "patient":
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient or str(patient.user_id) != str(current_user.id):
+            raise ForbiddenException()
+    elif current_user.role == "dentist" and not _dentist_has_appointment(db, current_user.id, patient_id):
+        raise ForbiddenException()
     q = db.query(Appointment).filter(Appointment.patient_id == patient_id).order_by(Appointment.scheduled_at.asc())
     return paginate(q, page, limit, schema=None)
 
 
-def get_patient_reports(db: Session, patient_id: str, page: int, limit: int):
+def get_patient_reports(db: Session, patient_id: str, current_user, page: int, limit: int):
+    if current_user.role == "patient":
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient or str(patient.user_id) != str(current_user.id):
+            raise ForbiddenException()
+    elif current_user.role == "dentist" and not _dentist_has_appointment(db, current_user.id, patient_id):
+        raise ForbiddenException()
     q = db.query(Report).filter(Report.patient_id == patient_id).order_by(Report.created_at.desc())
     return paginate(q, page, limit, schema=None)

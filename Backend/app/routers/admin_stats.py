@@ -44,6 +44,42 @@ def get_stats(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/stats/monthly", dependencies=[Depends(require_role("admin"))])
+def get_monthly_scan_stats(db: Session = Depends(get_db)):
+    """Return scan counts grouped by month for the last 12 months."""
+    from datetime import datetime, timezone
+    from sqlalchemy import func, extract
+
+    now = datetime.now(timezone.utc)
+    # Build last 12 months in order
+    months = []
+    for i in range(11, -1, -1):
+        month_offset = (now.month - 1 - i) % 12 + 1
+        year_offset = now.year - ((i - (now.month - 1)) // 12 if i >= now.month else 0)
+        months.append((year_offset, month_offset))
+
+    # Query scan counts grouped by year+month
+    rows = (
+        db.query(
+            extract("year", Scan.created_at).label("year"),
+            extract("month", Scan.created_at).label("month"),
+            func.count(Scan.id).label("count"),
+        )
+        .group_by("year", "month")
+        .all()
+    )
+    counts = {(int(r.year), int(r.month)): int(r.count) for r in rows}
+
+    MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    result = [
+        {"month": MONTH_ABBR[m - 1], "scans": counts.get((y, m), 0)}
+        for y, m in months
+    ]
+    return result
+
+
 @router.get("/dentists", dependencies=[Depends(require_role("admin"))])
 def list_all_dentists(
     page: int = 1,
@@ -62,7 +98,6 @@ def list_all_dentists(
             "user_id": str(d.user_id),
             "full_name": f"{d.user.first_name} {d.user.last_name}",
             "email": d.user.email,
-            "specialty": d.specialization,
             "is_approved": d.is_approved,
             "rating": d.rating,
         })
@@ -124,8 +159,6 @@ def invite_dentist(payload: dict, db: Session = Depends(get_db)):
     email = payload.get("email", "").strip().lower()
     first_name = payload.get("first_name", "").strip()
     last_name = payload.get("last_name", "").strip()
-    specialty = payload.get("specialty", "").strip()
-
     if not email or not first_name or not last_name:
         from fastapi import HTTPException
         raise HTTPException(status_code=422, detail="email, first_name and last_name are required.")
@@ -147,7 +180,7 @@ def invite_dentist(payload: dict, db: Session = Depends(get_db)):
     db.add(user)
     db.flush()
 
-    dentist = Dentist(user_id=user.id, specialization=specialty, is_approved=False)
+    dentist = Dentist(user_id=user.id, is_approved=False)
     db.add(dentist)
     db.commit()
     db.refresh(dentist)

@@ -3,8 +3,10 @@ import AppLayout from "@/components/common/AppLayout";
 import { PageHeader } from "@/components/ui/shared";
 import { SettingToggle, SettingsSection } from "@/components/ui/SettingsUI";
 import { useRequireAuth } from "@/lib/auth";
-import { authApi } from "@/lib/api";
+import { authApi, dentistApi } from "@/lib/api";
 import { useState, useEffect, FormEvent } from "react";
+
+const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function DentistSettingsPage() {
   const { user, loading: authLoading } = useRequireAuth("dentist");
@@ -12,9 +14,19 @@ export default function DentistSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
+  const [avail, setAvail] = useState({ available_from: "09:00", available_until: "17:00", working_days: ["Mon", "Tue", "Wed", "Thu", "Fri"] });
+  const [availSaving, setAvailSaving] = useState(false);
+  const [availMsg, setAvailMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (user) setForm({ first_name: user.first_name, last_name: user.last_name });
   }, [user]);
+
+  useEffect(() => {
+    dentistApi.getMyAvailability().then(data => {
+      setAvail({ available_from: data.available_from, available_until: data.available_until, working_days: data.working_days });
+    }).catch(() => {/* use defaults */});
+  }, []);
 
   if (authLoading) return null;
 
@@ -29,6 +41,19 @@ export default function DentistSettingsPage() {
       setSaveMsg("Failed to save. Please try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAvailabilitySave() {
+    setAvailSaving(true);
+    setAvailMsg(null);
+    try {
+      await dentistApi.updateAvailability(avail);
+      setAvailMsg("Availability updated successfully.");
+    } catch {
+      setAvailMsg("Failed to update availability.");
+    } finally {
+      setAvailSaving(false);
     }
   }
 
@@ -65,21 +90,36 @@ export default function DentistSettingsPage() {
           {/* Availability */}
           <SettingsSection title="Availability Settings">
             <div style={{ padding: "16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div><label className="label">Available From</label><input className="input" type="time" defaultValue="09:00" /></div>
-              <div><label className="label">Available Until</label><input className="input" type="time" defaultValue="17:00" /></div>
+              <div><label className="label">Available From</label><input className="input" type="time" value={avail.available_from} onChange={e => setAvail(p => ({ ...p, available_from: e.target.value }))} /></div>
+              <div><label className="label">Available Until</label><input className="input" type="time" value={avail.available_until} onChange={e => setAvail(p => ({ ...p, available_until: e.target.value }))} /></div>
               <div style={{ gridColumn: "span 2" }}>
                 <label className="label">Working Days</label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) => (
+                  {ALL_DAYS.map((d) => (
                     <label key={d} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                      <input type="checkbox" defaultChecked={i < 5} style={{ accentColor: "var(--brand-blue)" }} />{d}
+                      <input
+                        type="checkbox"
+                        checked={avail.working_days.includes(d)}
+                        onChange={e => setAvail(p => ({
+                          ...p,
+                          working_days: e.target.checked
+                            ? [...p.working_days, d]
+                            : p.working_days.filter(x => x !== d),
+                        }))}
+                        style={{ accentColor: "var(--brand-blue)" }}
+                      />{d}
                     </label>
                   ))}
                 </div>
               </div>
             </div>
+            {availMsg && (
+              <div style={{ fontSize: 13, marginBottom: 8, color: availMsg.includes("success") ? "var(--success)" : "#dc2626" }}>{availMsg}</div>
+            )}
             <div style={{ paddingBottom: 16 }}>
-              <button className="btn btn-outline btn-sm">Update Availability</button>
+              <button className="btn btn-outline btn-sm" onClick={handleAvailabilitySave} disabled={availSaving}>
+                {availSaving ? "Saving…" : "Update Availability"}
+              </button>
             </div>
           </SettingsSection>
 

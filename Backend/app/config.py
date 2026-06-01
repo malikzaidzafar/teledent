@@ -39,7 +39,8 @@ class Settings(BaseSettings):
 
     # AI
     GEMINI_API_KEY: str = ""
-    YOLO_MODEL_PATH: str = ""  # Override path to best.pt; auto-resolved if empty
+    YOLO_MODEL_PATH: str = ""       # Override path to teeth-image best.pt; auto-resolved if empty
+    XRAY_YOLO_MODEL_PATH: str = ""  # Override path to xray_best.pt; auto-resolved if empty
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""  # e.g. 1234567890-abc.apps.googleusercontent.com

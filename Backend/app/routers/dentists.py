@@ -12,6 +12,55 @@ from app.models.user import User
 router = APIRouter(prefix="/dentists", tags=["Dentists"])
 
 
+class AvailabilityUpdate:
+    def __init__(self, available_from: str = None, available_until: str = None, working_days: list = None):
+        self.available_from = available_from
+        self.available_until = available_until
+        self.working_days = working_days
+
+
+@router.get("/me")
+def get_my_profile(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.core.exceptions import NotFoundException, ForbiddenException
+    if current_user.role != "dentist":
+        raise ForbiddenException()
+    dentist = db.query(Dentist).filter(Dentist.user_id == current_user.id).first()
+    if not dentist:
+        raise NotFoundException("Dentist profile")
+    schedule = dentist.schedule or {}
+    return {
+        "available_from": schedule.get("available_from", "09:00"),
+        "available_until": schedule.get("available_until", "17:00"),
+        "working_days": schedule.get("working_days", ["Mon", "Tue", "Wed", "Thu", "Fri"]),
+    }
+
+
+@router.patch("/me/availability")
+def update_my_availability(payload: dict, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.core.exceptions import NotFoundException, ForbiddenException
+    if current_user.role != "dentist":
+        raise ForbiddenException()
+    dentist = db.query(Dentist).filter(Dentist.user_id == current_user.id).first()
+    if not dentist:
+        raise NotFoundException("Dentist profile")
+    schedule = dict(dentist.schedule or {})
+    if "available_from" in payload:
+        schedule["available_from"] = payload["available_from"]
+    if "available_until" in payload:
+        schedule["available_until"] = payload["available_until"]
+    if "working_days" in payload:
+        schedule["working_days"] = payload["working_days"]
+    dentist.schedule = schedule
+    db.commit()
+    db.refresh(dentist)
+    return {
+        "message": "Availability updated.",
+        "available_from": schedule.get("available_from"),
+        "available_until": schedule.get("available_until"),
+        "working_days": schedule.get("working_days"),
+    }
+
+
 def _dentist_to_dict(dentist: Dentist) -> dict:
     user: User = dentist.user
     return {
@@ -19,7 +68,6 @@ def _dentist_to_dict(dentist: Dentist) -> dict:
         "user_id": str(dentist.user_id),
         "full_name": f"{user.first_name} {user.last_name}",
         "email": user.email,
-        "specialty": dentist.specialization,
         "rating": dentist.rating,
         "available_today": True,  # TODO: check schedule
         "bio": dentist.bio,
@@ -33,7 +81,6 @@ def list_dentists(
     page: int = Query(1, ge=1),
     limit: int = Query(20, le=100),
     search: Optional[str] = None,
-    specialty: Optional[str] = None,
     _=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -42,8 +89,6 @@ def list_dentists(
         query = query.filter(
             (User.first_name + " " + User.last_name).ilike(f"%{search}%")
         )
-    if specialty:
-        query = query.filter(Dentist.specialization.ilike(f"%{specialty}%"))
 
     total = query.count()
     dentists = query.offset((page - 1) * limit).limit(limit).all()

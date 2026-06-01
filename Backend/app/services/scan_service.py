@@ -103,7 +103,8 @@ def _run_ai_pipeline(db: Session, scan: Scan):
 
         # ── 3. YOLO detection ─────────────────────────────────────────────
         from app.services.yolo_service import run_detection
-        yolo_result = run_detection(image_bytes)
+        scan_type_str = scan.scan_type.value if hasattr(scan.scan_type, "value") else str(scan.scan_type)
+        yolo_result = run_detection(image_bytes, scan_type=scan_type_str)
 
         # ── 4. Gemini enrichment ──────────────────────────────────────────
         vision = _get_vision_service()
@@ -144,6 +145,8 @@ def _run_ai_pipeline(db: Session, scan: Scan):
         top_confidence = findings[0]["confidence"] if findings else 0.0
 
         # ── 7. Save Analysis ──────────────────────────────────────────────
+        model_used = yolo_result.get("model_used", "teeth-image")
+        model_version = f"yolo-xray-gemini-v1" if model_used == "xray" else "yolov8-gemini-v1"
         analysis = Analysis(
             id=uuid.uuid4(),
             scan_id=scan.id,
@@ -151,7 +154,7 @@ def _run_ai_pipeline(db: Session, scan: Scan):
             confidence_score=top_confidence,
             findings=findings,
             ai_explanation=ai_explanation,
-            model_version="yolov8-gemini-v1",
+            model_version=model_version,
             processed_at=datetime.now(timezone.utc),
         )
         db.add(analysis)

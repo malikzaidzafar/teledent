@@ -119,8 +119,11 @@ export const authApi = {
 };
 
 export const patientApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; status?: string }) =>
-    request<PaginatedResponse<PatientSummary>>("GET", `/patients?${new URLSearchParams(params as Record<string, string>)}`),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") qs.set(k, String(v)); });
+    return request<PaginatedResponse<PatientSummary>>("GET", `/patients?${qs}`);
+  },
   get: (id: string) => request<Patient>("GET", `/patients/${id}`),
   update: (id: string, data: Partial<Patient>) => request<Patient>("PATCH", `/patients/${id}`, data),
   delete: (id: string) => request<void>("DELETE", `/patients/${id}`),
@@ -152,7 +155,7 @@ export const reportApi = {
 };
 
 export const appointmentApi = {
-  create: (data: CreateAppointmentPayload) => request<{ appointment_id: string; join_url: string; status: string }>("POST", "/appointments", data),
+  create: (data: CreateAppointmentPayload) => request<{ id: string; join_url: string; status: string }>("POST", "/appointments", data),
   list: (page = 1) => request<PaginatedResponse<Appointment>>("GET", `/appointments?page=${page}`),
   get: (id: string) => request<Appointment>("GET", `/appointments/${id}`),
   update: (id: string, data: Partial<Appointment>) => request<Appointment>("PATCH", `/appointments/${id}`, data),
@@ -167,18 +170,23 @@ export const videoApi = {
 };
 
 export const dentistApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; specialty?: string }) =>
+  list: (params?: { page?: number; limit?: number; search?: string }) =>
     request<PaginatedResponse<DentistSummary>>("GET", `/dentists?${new URLSearchParams((params || {}) as Record<string, string>)}`),
   get: (id: string) => request<DentistProfile>("GET", `/dentists/${id}`),
   availableSlots: (id: string, date: string) =>
     request<{ slots: string[] }>("GET", `/dentists/${id}/slots?date=${date}`),
+  getMyAvailability: () =>
+    request<{ available_from: string; available_until: string; working_days: string[] }>("GET", "/dentists/me"),
+  updateAvailability: (data: { available_from: string; available_until: string; working_days: string[] }) =>
+    request<{ message: string; available_from: string; available_until: string; working_days: string[] }>("PATCH", "/dentists/me/availability", data),
 };
 
 export const adminApi = {
   stats: () => request<AdminStats>("GET", "/admin/stats"),
+  monthlyScans: () => request<{ month: string; scans: number }[]>("GET", "/admin/stats/monthly"),
 
   // Dentist management
-  listDentists: (params?: { page?: number; limit?: number; search?: string; specialty?: string }) =>
+  listDentists: (params?: { page?: number; limit?: number; search?: string }) =>
     request<PaginatedResponse<AdminDentist>>("GET", `/admin/dentists?${new URLSearchParams((params || {}) as Record<string, string>)}`),
   approveDentist: (id: string) => request<{ message: string }>("POST", `/admin/dentists/${id}/approve`),
   suspendDentist: (id: string) => request<{ message: string }>("POST", `/admin/dentists/${id}/suspend`),
@@ -373,7 +381,6 @@ export interface DentistSummary {
   user_id: string;
   full_name: string;
   email: string;
-  specialty?: string;
   rating?: number;
   available_today?: boolean;
   next_available?: string;
@@ -389,7 +396,6 @@ export interface InviteDentistPayload {
   email: string;
   first_name: string;
   last_name: string;
-  specialty?: string;
 }
 
 export interface PlatformSettings {

@@ -1,6 +1,6 @@
 "use client";
 import AppLayout from "@/components/common/AppLayout";
-import { PageHeader, Avatar, Badge } from "@/components/ui/shared";
+import { PageHeader, Avatar } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { dentistApi, appointmentApi, type DentistSummary } from "@/lib/api";
@@ -15,7 +15,6 @@ function BookAppointmentPageInner() {
   const [dentists, setDentists] = useState<DentistSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [specialty, setSpecialty] = useState("");
   const [booking, setBooking] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +26,9 @@ function BookAppointmentPageInner() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = dentists.filter(d => {
-    const matchSearch = !search || d.full_name.toLowerCase().includes(search.toLowerCase()) || d.specialty?.toLowerCase().includes(search.toLowerCase());
-    const matchSpecialty = !specialty || d.specialty === specialty;
-    return matchSearch && matchSpecialty;
-  });
+  const filtered = dentists.filter(d =>
+    !search || d.full_name.toLowerCase().includes(search.toLowerCase())
+  );
 
   async function handleBook(dentist: DentistSummary) {
     const slot = selectedSlot[dentist.id];
@@ -47,7 +44,7 @@ function BookAppointmentPageInner() {
         scan_id: prefilledScanId,
       });
       // Redirect to Stripe checkout for payment
-      router.push(`/patient/checkout?appointment_id=${appt.appointment_id}`);
+      router.push(`/patient/checkout?appointment_id=${appt.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Booking failed. Please try again.");
     } finally {
@@ -70,7 +67,7 @@ function BookAppointmentPageInner() {
 
   return (
     <AppLayout role="patient" pageTitle="Book Appointment">
-      <PageHeader title="Book Appointment" subtitle="Choose a certified dentist and schedule a video consultation." />
+      <PageHeader title="Book Appointment" />
       <div className="page-body">
         {prefilledScanId && (
           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 20, fontSize: 14 }}>
@@ -82,15 +79,6 @@ function BookAppointmentPageInner() {
             {error}
           </div>
         )}
-        <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
-          <input className="input" placeholder="  Search by name or specialty…" style={{ maxWidth: 320 }} value={search} onChange={e => setSearch(e.target.value)} />
-          <select className="input" style={{ maxWidth: 180 }} value={specialty} onChange={e => setSpecialty(e.target.value)}>
-            <option value="">All Specialties</option>
-            <option>General Dentistry</option>
-            <option>Orthodontics</option>
-            <option>Periodontology</option>
-          </select>
-        </div>
 
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading dentists…</div>
@@ -106,7 +94,7 @@ function BookAppointmentPageInner() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                       <h3 style={{ fontSize: 17, fontWeight: 700 }}>{d.full_name}</h3>
-                      {d.specialty && <Badge variant="blue">{d.specialty}</Badge>}
+
                     </div>
                     {d.rating && (
                       <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 12 }}>

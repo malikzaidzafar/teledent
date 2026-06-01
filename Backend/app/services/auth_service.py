@@ -131,7 +131,8 @@ def _serialize_user(user: User) -> dict:
         "is_approved": None,
     }
     if role == "dentist" and hasattr(user, "dentist_profile") and user.dentist_profile:
-        data["is_approved"] = user.dentist_profile.is_approved
+        profile = user.dentist_profile[0] if isinstance(user.dentist_profile, list) else user.dentist_profile
+        data["is_approved"] = profile.is_approved
     return data
 
 

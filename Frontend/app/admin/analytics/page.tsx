@@ -5,24 +5,23 @@ import { useRequireAuth } from "@/lib/auth";
 import { adminApi, type AdminStats } from "@/lib/api";
 import { useEffect, useState } from "react";
 
-const MONTHLY = [
-  { month: "Jan", scans: 240 }, { month: "Feb", scans: 310 },
-  { month: "Mar", scans: 280 }, { month: "Apr", scans: 420 },
-  { month: "May", scans: 530 },
-];
-const MAX_SCANS = Math.max(...MONTHLY.map((m) => m.scans));
-
 export default function AdminAnalyticsPage() {
   const { loading: authLoading } = useRequireAuth("admin");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [monthly, setMonthly] = useState<{ month: string; scans: number }[]>([]);
 
   useEffect(() => {
     adminApi.stats()
       .then(setStats)
       .catch(() => {})
       .finally(() => setLoading(false));
+    adminApi.monthlyScans()
+      .then(setMonthly)
+      .catch(() => {});
   }, []);
+
+  const MAX_SCANS = monthly.length ? Math.max(...monthly.map((m) => m.scans), 1) : 1;
 
   if (authLoading) return null;
 
@@ -62,10 +61,14 @@ export default function AdminAnalyticsPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,340px)", gap: 22, marginBottom: 22 }}>
           {/* Bar Chart */}
-          <SectionCard title="Monthly Scan Volume (Sample)">
+          <SectionCard title="Monthly Scan Volume">
             <div style={{ padding: "20px 20px 8px" }}>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 160 }}>
-                {MONTHLY.map((m) => (
+                {loading ? (
+                  <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 13 }}>Loading…</div>
+                ) : monthly.length === 0 ? (
+                  <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 13 }}>No data yet</div>
+                ) : monthly.map((m) => (
                   <div key={m.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%", justifyContent: "flex-end" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--brand-blue)" }}>{m.scans}</div>
                     <div style={{ width: "100%", background: "var(--brand-blue)", borderRadius: "4px 4px 0 0", height: `${(m.scans / MAX_SCANS) * 120}px`, transition: "height 0.4s ease" }} />
@@ -76,27 +79,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </SectionCard>
 
-          {/* Breakdown */}
-          <SectionCard title="Scan Type Breakdown">
-            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-              {[
-                { label: "Panoramic X-ray",  pct: 42 },
-                { label: "Periapical X-ray", pct: 28 },
-                { label: "Bitewing X-ray",   pct: 18 },
-                { label: "Intraoral Photo",  pct: 12 },
-              ].map((b) => (
-                <div key={b.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{b.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-blue)" }}>{b.pct}%</span>
-                  </div>
-                  <div style={{ height: 7, background: "var(--surface-3)", borderRadius: 4 }}>
-                    <div style={{ width: `${b.pct}%`, height: "100%", background: "var(--brand-blue)", borderRadius: 4 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
+
         </div>
       </div>
     </AppLayout>

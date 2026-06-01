@@ -5,15 +5,6 @@ import { useRequireAuth } from "@/lib/auth";
 import { adminApi, type AdminDentist } from "@/lib/api";
 import { useEffect, useState, useCallback, useRef } from "react";
 
-const SPECIALTIES = [
-  "General Dentistry",
-  "Orthodontics",
-  "Periodontology",
-  "Endodontics",
-  "Oral Surgery",
-  "Pediatric Dentistry",
-  "Cosmetic Dentistry",
-];
 
 function deriveStatus(d: AdminDentist): "Active" | "Pending" | "Suspended" {
   if (!d.is_approved) return "Pending";
@@ -28,7 +19,7 @@ interface InviteModalProps {
   onInvited: () => void;
 }
 function InviteModal({ onClose, onInvited }: InviteModalProps) {
-  const [form, setForm] = useState({ email: "", first_name: "", last_name: "", specialty: "" });
+  const [form, setForm] = useState({ email: "", first_name: "", last_name: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -89,13 +80,6 @@ function InviteModal({ onClose, onInvited }: InviteModalProps) {
             <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Email Address *</label>
             <input className="input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required placeholder="jane.smith@clinic.com" />
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Specialty</label>
-            <select className="input" value={form.specialty} onChange={e => setForm(f => ({ ...f, specialty: e.target.value }))}>
-              <option value="">Select specialty…</option>
-              {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -155,7 +139,6 @@ function DentistDrawer({ dentist, onClose, onAction }: { dentist: AdminDentist; 
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
           {[
-            { label: "Specialty", value: dentist.specialty || "—" },
             { label: "Rating", value: dentist.rating ? ` ${dentist.rating.toFixed(1)}` : "—" },
             { label: "Dentist ID", value: dentist.id.slice(0, 8) + "…" },
           ].map(({ label, value }) => (
@@ -200,7 +183,6 @@ export default function AdminDentistsPage() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [specialty, setSpecialty] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [selected, setSelected] = useState<AdminDentist | null>(null);
@@ -214,7 +196,6 @@ export default function AdminDentistsPage() {
         page: p,
         limit: 15,
         search: search || undefined,
-        specialty: specialty || undefined,
       });
       const enriched = res.data.map(d => ({ ...d, status: deriveStatus(d) })) as AdminDentist[];
       setDentists(enriched);
@@ -226,7 +207,7 @@ export default function AdminDentistsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, specialty]);
+  }, [search]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -297,15 +278,7 @@ export default function AdminDentistsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <select
-            className="input"
-            style={{ maxWidth: 200 }}
-            value={specialty}
-            onChange={e => setSpecialty(e.target.value)}
-          >
-            <option value="">All Specialties</option>
-            {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+
         </div>
 
         <SectionCard title={`${filtered.length} Dentist${filtered.length !== 1 ? "s" : ""}${statusFilter ? ` · ${statusFilter}` : ""}`}>
@@ -318,11 +291,11 @@ export default function AdminDentistsPage() {
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}></div>
               No dentists found.{" "}
-              {search || specialty ? (
+              {search ? (
                 <button
                   className="btn btn-ghost btn-sm"
                   style={{ marginLeft: 8 }}
-                  onClick={() => { setSearch(""); setSpecialty(""); setStatusFilter(""); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); }}
                 >
                   Clear filters
                 </button>
@@ -337,7 +310,6 @@ export default function AdminDentistsPage() {
               <thead>
                 <tr>
                   <th>Dentist</th>
-                  <th>Specialty</th>
                   <th>Rating</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -357,7 +329,6 @@ export default function AdminDentistsPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontSize: 13 }}>{d.specialty || <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
                       <td>
                         {d.rating
                           ? <span style={{ fontWeight: 700, color: "#d97706" }}> {d.rating.toFixed(1)}</span>

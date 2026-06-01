@@ -50,11 +50,11 @@ def get_scans(patient_id: str, page: int = Query(1), limit: int = Query(20),
 
 @router.get("/{patient_id}/appointments")
 def get_appointments(patient_id: str, page: int = Query(1), limit: int = Query(20),
-                     _=Depends(get_current_user), db: Session = Depends(get_db)):
-    return patient_service.get_patient_appointments(db, patient_id, page, limit)
+                     current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return patient_service.get_patient_appointments(db, patient_id, current_user, page, limit)
 
 
 @router.get("/{patient_id}/reports")
 def get_reports(patient_id: str, page: int = Query(1), limit: int = Query(20),
-                _=Depends(get_current_user), db: Session = Depends(get_db)):
-    return patient_service.get_patient_reports(db, patient_id, page, limit)
+                current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return patient_service.get_patient_reports(db, patient_id, current_user, page, limit)

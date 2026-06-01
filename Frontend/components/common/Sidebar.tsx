@@ -12,6 +12,7 @@ const NAV_MAP = {
     { href: "/patient/scan",          label: "Upload Scan",   icon: "" },
     { href: "/patient/scans",         label: "My Scans",      icon: "" },
     { href: "/patient/appointments",  label: "Appointments",  icon: "" },
+    { href: "/patient/messages",      label: "Messages",      icon: "" },
     { href: "/patient/video",         label: "Video Call",    icon: "" },
   ] as NavItem[],
   dentist: [
@@ -26,7 +27,7 @@ const NAV_MAP = {
     { href: "/admin/patients",        label: "Patients",      icon: "" },
     { href: "/admin/dentists",        label: "Dentists",      icon: "" },
     { href: "/admin/analytics",       label: "Analytics",     icon: "" },
-    { href: "/admin/settings",        label: "Settings",      icon: "" },
+    // { href: "/admin/settings",        label: "Settings",      icon: "" }, // TEMPORARILY HIDDEN
   ] as NavItem[],
 };
 
@@ -76,10 +77,18 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
             );
           })}
           <div className="nav-section-label">Account</div>
+          {/* TEMPORARILY HIDDEN for admin: Settings page commented out
           <Link href={`/${role}/settings`} className={`nav-item ${pathname === `/${role}/settings` ? "active" : ""}`} onClick={close}>
             <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: pathname === `/${role}/settings` ? 1 : 0.7 }}>⚙️</span>
             Settings
           </Link>
+          */}
+          {role !== "admin" && (
+            <Link href={`/${role}/settings`} className={`nav-item ${pathname === `/${role}/settings` ? "active" : ""}`} onClick={close}>
+              <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: pathname === `/${role}/settings` ? 1 : 0.7 }}></span>
+              Settings
+            </Link>
+          )}
         </nav>
 
         <div className="sidebar-footer">

@@ -29,7 +29,12 @@ async def generate_report_pdf(report_data: dict) -> bytes:
 
 
 def upload_pdf_to_cloudinary(pdf_bytes: bytes, report_id: str) -> str:
-    import cloudinary.uploader, io
+    import cloudinary, cloudinary.uploader, io
+    cloudinary.config(
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        api_key=settings.CLOUDINARY_API_KEY,
+        api_secret=settings.CLOUDINARY_API_SECRET,
+    )
     result = cloudinary.uploader.upload(
         io.BytesIO(pdf_bytes),
         resource_type="raw",
