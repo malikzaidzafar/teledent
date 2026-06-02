@@ -24,6 +24,7 @@ class ConversationOut(BaseModel):
     patient_id: str
     dentist_id: str
     created_at: str
+    other_user_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -77,15 +78,20 @@ def list_conversations(current_user: User = Depends(get_current_user), db: Sessi
         (Conversation.dentist_id == current_user.id)
     ).order_by(Conversation.created_at.desc()).all()
 
-    return [
-        ConversationOut(
+    out = []
+    for c in convs:
+        other_user_id = c.dentist_id if current_user.role == "patient" else c.patient_id
+        other_user = db.query(User).filter(User.id == other_user_id).first()
+        other_name = f"{other_user.first_name} {other_user.last_name}" if other_user else "Unknown"
+
+        out.append(ConversationOut(
             id=str(c.id),
             patient_id=str(c.patient_id),
             dentist_id=str(c.dentist_id),
             created_at=c.created_at.isoformat(),
-        )
-        for c in convs
-    ]
+            other_user_name=other_name
+        ))
+    return out
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ConversationOut)
@@ -97,12 +103,19 @@ def create_conversation(
     """Create a new conversation between patient and dentist.
     The caller's role determines which side they are on.
     """
+    from app.models.patient import Patient
+    
     if current_user.role == "patient":
         patient_id = current_user.id
         dentist_id = body.other_user_id
     elif current_user.role == "dentist":
         dentist_id = current_user.id
-        patient_id = body.other_user_id
+        # The frontend passes the Patient ID (not User ID), so resolve it.
+        patient_record = db.query(Patient).filter(Patient.id == body.other_user_id).first()
+        if patient_record:
+            patient_id = patient_record.user_id
+        else:
+            patient_id = body.other_user_id
     else:
         # admin — provide both; other_user_id is the patient, you need a separate field
         raise ForbiddenException("Admins cannot create conversations directly.")
@@ -112,12 +125,19 @@ def create_conversation(
         Conversation.patient_id == patient_id,
         Conversation.dentist_id == dentist_id,
     ).first()
+    
+    def _get_other_name(conv):
+        other_uid = conv.dentist_id if current_user.role == "patient" else conv.patient_id
+        ou = db.query(User).filter(User.id == other_uid).first()
+        return f"{ou.first_name} {ou.last_name}" if ou else "Unknown"
+
     if existing:
         return ConversationOut(
             id=str(existing.id),
             patient_id=str(existing.patient_id),
             dentist_id=str(existing.dentist_id),
             created_at=existing.created_at.isoformat(),
+            other_user_name=_get_other_name(existing)
         )
 
     conv = Conversation(id=uuid.uuid4(), patient_id=patient_id, dentist_id=dentist_id)
@@ -129,6 +149,7 @@ def create_conversation(
         patient_id=str(conv.patient_id),
         dentist_id=str(conv.dentist_id),
         created_at=conv.created_at.isoformat(),
+        other_user_name=_get_other_name(conv)
     )
 
 
@@ -140,11 +161,17 @@ def get_conversation(
 ):
     conv = _get_conversation_or_404(db, conversation_id)
     _assert_participant(conv, current_user)
+    
+    other_uid = conv.dentist_id if current_user.role == "patient" else conv.patient_id
+    ou = db.query(User).filter(User.id == other_uid).first()
+    other_name = f"{ou.first_name} {ou.last_name}" if ou else "Unknown"
+    
     return ConversationOut(
         id=str(conv.id),
         patient_id=str(conv.patient_id),
         dentist_id=str(conv.dentist_id),
         created_at=conv.created_at.isoformat(),
+        other_user_name=other_name
     )
 
 

@@ -98,7 +98,7 @@ function CheckoutForm({
         gap: 8,
         alignItems: "flex-start",
       }}>
-        <span style={{ fontSize: 16 }}>🧪</span>
+        <span style={{ fontSize: 16 }}></span>
         <div>
           <strong>Test Mode — </strong>no real charge.
           Use card <code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: 4 }}>4242 4242 4242 4242</code>,
@@ -156,7 +156,7 @@ function CheckoutForm({
 function PaymentSuccess({ onDone }: { onDone: () => void }) {
   return (
     <div style={{ textAlign: "center", padding: "48px 24px" }}>
-      <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 32 }}>✓</div>
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Payment Successful!</h2>
       <p style={{ color: "var(--text-secondary)", marginBottom: 28, fontSize: 15 }}>
         Your appointment has been confirmed. You'll receive a confirmation shortly.
@@ -248,7 +248,7 @@ function CheckoutPageInner() {
                 fontSize: 14,
                 lineHeight: 1.6,
               }}>
-                ⚠️ {error}
+                {error}
               </div>
               <div style={{ marginTop: 16 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => router.back()}>

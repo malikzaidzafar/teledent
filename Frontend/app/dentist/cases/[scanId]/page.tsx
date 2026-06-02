@@ -275,7 +275,7 @@ export default function DentistReviewPage() {
                 <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
                   {saved && (
                     <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "var(--radius)", padding: "10px 14px", color: "#15803d", fontWeight: 600, fontSize: 13 }}>
-                      ✓ Review saved successfully!
+                      Review saved successfully!
                     </div>
                   )}
                   {saveError && (

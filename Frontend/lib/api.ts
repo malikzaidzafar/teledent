@@ -448,6 +448,7 @@ export interface ConversationOut {
   patient_id: string;
   dentist_id: string;
   created_at: string;
+  other_user_name?: string;
 }
 
 export interface MessageOut {

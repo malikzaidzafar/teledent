@@ -36,7 +36,7 @@ function CompleteInner() {
             )}
             {status === "success" && (
               <div style={{ textAlign: "center", padding: "48px 24px" }}>
-                <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 32 }}>✓</div>
                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Payment Confirmed!</h2>
                 <p style={{ color: "var(--text-secondary)", marginBottom: 28 }}>
                   Your appointment is booked and payment received.
@@ -48,7 +48,7 @@ function CompleteInner() {
             )}
             {status === "failed" && (
               <div style={{ textAlign: "center", padding: "48px 24px" }}>
-                <div style={{ fontSize: 64, marginBottom: 16 }}>❌</div>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 32 }}>✕</div>
                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Payment Failed</h2>
                 <p style={{ color: "var(--text-secondary)", marginBottom: 28 }}>
                   Something went wrong. Please try again.

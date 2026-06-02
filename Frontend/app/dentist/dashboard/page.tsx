@@ -67,7 +67,7 @@ export default function DentistDashboardPage() {
               transition: "box-shadow 0.2s",
               boxShadow: "0 2px 12px rgba(251,191,36,0.15)",
             }}>
-              <span style={{ fontSize: 28 }}>📅</span>
+              <span style={{ fontSize: 28 }}></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "#92400e" }}>
                   {pending.length} Appointment Request{pending.length > 1 ? "s" : ""} Awaiting Confirmation

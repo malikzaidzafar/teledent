@@ -151,9 +151,7 @@ export default function DentistAppointmentsPage() {
         ) : displayed.length === 0 ? (
           <SectionCard title="">
             <div style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>
-                {tab === "pending" ? "🎉" : tab === "confirmed" ? "📅" : "✅"}
-              </div>
+
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: "var(--text-secondary)" }}>
                 {tab === "pending" ? "No pending requests" : tab === "confirmed" ? "No confirmed appointments" : tab === "completed" ? "No completed appointments yet" : "No appointments found"}
               </div>
@@ -231,7 +229,7 @@ export default function DentistAppointmentsPage() {
                         disabled={confirming === a.id}
                         style={{ minWidth: 90 }}
                       >
-                        {confirming === a.id ? "Confirming…" : "✓ Confirm"}
+                        {confirming === a.id ? "Confirming…" : "Confirm"}
                       </button>
                     )}
 
@@ -254,7 +252,7 @@ export default function DentistAppointmentsPage() {
                         disabled={messaging === a.id}
                         title="Message this patient"
                       >
-                        {messaging === a.id ? "…" : "💬 Message"}
+                        {messaging === a.id ? "…" : "Message"}
                       </button>
                     )}
                   </div>

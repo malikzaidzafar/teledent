@@ -71,7 +71,7 @@ function BookAppointmentPageInner() {
       <div className="page-body">
         {prefilledScanId && (
           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 20, fontSize: 14 }}>
-            📋 Booking linked to your scan — your dentist will receive access to your AI analysis report.
+            Booking linked to your scan — your dentist will receive access to your AI analysis report.
           </div>
         )}
         {error && (

@@ -88,8 +88,7 @@ function DentistMessagesInner() {
         convs.map(async (conv) => {
           const msgs = await messagesApi.listMessages(conv.id).catch(() => [] as MessageOut[]);
           const unread = msgs.filter(m => m.sender_id !== user?.id && !m.is_read).length;
-          const otherId = conv.patient_id;
-          const otherName = `Patient ${otherId.slice(0, 6).toUpperCase()}`;
+          const otherName = conv.other_user_name || "Unknown";
           return { conv, otherName, lastMsg: msgs[msgs.length - 1], unread };
         })
       );
@@ -110,14 +109,14 @@ function DentistMessagesInner() {
     pollRef.current = setInterval(() => loadMessages(meta.conv.id), 5000);
   }
 
-  async function startConversationWithPatient(patientUserId: string, patientLabel: string) {
+  async function startConversationWithPatient(patientUserId: string) {
     setStartingConv(patientUserId);
     try {
       const conv = await messagesApi.startConversation(patientUserId);
       await loadConversations();
       const meta: ConvMeta = {
         conv,
-        otherName: patientLabel,
+        otherName: conv.other_user_name || "Unknown",
         unread: 0,
       };
       openConversation(meta);
@@ -229,7 +228,7 @@ function DentistMessagesInner() {
                         </div>
                         <button
                           className="btn btn-primary btn-sm"
-                          onClick={() => startConversationWithPatient(a.patient_id, `Patient ${a.patient_id.slice(0, 6).toUpperCase()}`)}
+                          onClick={() => startConversationWithPatient(a.patient_id)}
                           disabled={startingConv === a.patient_id}
                           style={{ flexShrink: 0 }}
                         >
@@ -246,7 +245,6 @@ function DentistMessagesInner() {
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
               {!activeConv ? (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16, padding: 40 }}>
-                  <div style={{ fontSize: 48 }}>💬</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-secondary)" }}>No conversation selected</div>
                   {appointmentsWithoutConv.length > 0 ? (
                     <div style={{ textAlign: "center", fontSize: 13 }}>
@@ -254,13 +252,10 @@ function DentistMessagesInner() {
                       <button
                         className="btn btn-primary"
                         style={{ marginTop: 12 }}
-                        onClick={() => startConversationWithPatient(
-                          appointmentsWithoutConv[0].patient_id,
-                          `Patient ${appointmentsWithoutConv[0].patient_id.slice(0, 6).toUpperCase()}`
-                        )}
+                        onClick={() => startConversationWithPatient(appointmentsWithoutConv[0].patient_id)}
                         disabled={startingConv !== null}
                       >
-                        {startingConv ? "Starting…" : "💬 Start Conversation"}
+                        {startingConv ? "Starting…" : "Start Conversation"}
                       </button>
                     </div>
                   ) : (

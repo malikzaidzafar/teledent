@@ -74,7 +74,7 @@ export default function MyScansPage() {
                           {s.status === "complete" && s.ai_result ? (
                             <div>
                               <Badge variant={s.ai_result.findings_count === 0 ? "success" : s.ai_result.overall_risk === "high" ? "danger" : "warning"}>
-                                {s.ai_result.findings_count === 0 ? "✅ Healthy" : `${s.ai_result.findings_count} Finding${s.ai_result.findings_count > 1 ? "s" : ""}`}
+                                {s.ai_result.findings_count === 0 ? "Healthy" : `${s.ai_result.findings_count} Finding${s.ai_result.findings_count > 1 ? "s" : ""}`}
                               </Badge>
                               {s.ai_result.top_condition && s.ai_result.findings_count > 0 && (
                                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Top: {s.ai_result.top_condition}</div>
@@ -94,7 +94,7 @@ export default function MyScansPage() {
                             {s.status === "complete" ? (
                               <>
                                 <Link href={`/patient/report?scan_id=${s.id}`} className="btn btn-primary btn-sm">
-                                  {s.dentist_reviewed ? "📋 View Report" : "🔬 View Results"}
+                                  {s.dentist_reviewed ? "View Report" : "View Results"}
                                 </Link>
                               </>
                             ) : s.status === "processing" || s.status === "queued" ? (

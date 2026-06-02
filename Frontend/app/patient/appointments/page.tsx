@@ -63,7 +63,7 @@ export default function AppointmentsPage() {
                 onClick={() => handleMessage(nextAppt.dentist_id, nextAppt.id)}
                 disabled={messaging === nextAppt.id}
               >
-                {messaging === nextAppt.id ? "Opening…" : "💬 Message Dentist"}
+                {messaging === nextAppt.id ? "Opening…" : "Message Dentist"}
               </button>
               {nextAppt.join_url && <Link href="/patient/video" className="btn btn-primary">Join Call </Link>}
             </div>
@@ -115,7 +115,7 @@ export default function AppointmentsPage() {
                                 disabled={messaging === a.id}
                                 title="Send a message to your dentist"
                               >
-                                {messaging === a.id ? "…" : "💬 Message"}
+                                {messaging === a.id ? "…" : "Message"}
                               </button>
                             )}
                             {(a.status === "pending" || a.status === "confirmed") && (

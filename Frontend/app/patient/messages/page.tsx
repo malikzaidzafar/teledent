@@ -94,7 +94,7 @@ function PatientMessagesInner() {
         convs.map(async (conv) => {
           const msgs = await messagesApi.listMessages(conv.id).catch(() => [] as MessageOut[]);
           const unread = msgs.filter(m => m.sender_id !== user?.id && !m.is_read).length;
-          const otherName = `Dr. ${conv.dentist_id.slice(0, 6).toUpperCase()}`;
+          const otherName = conv.other_user_name ? `Dr. ${conv.other_user_name}` : "Dr. Unknown";
           return { conv, otherName, lastMsg: msgs[msgs.length - 1], unread };
         })
       );
@@ -132,7 +132,7 @@ function PatientMessagesInner() {
       // Open the new conversation
       const meta: ConvMeta = {
         conv,
-        otherName: `Dr. ${conv.dentist_id.slice(0, 6).toUpperCase()}`,
+        otherName: conv.other_user_name ? `Dr. ${conv.other_user_name}` : "Dr. Unknown",
         unread: 0,
       };
       openConversation(meta);
@@ -276,7 +276,6 @@ function PatientMessagesInner() {
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
               {!activeConv ? (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16, padding: 40 }}>
-                  <div style={{ fontSize: 48 }}>💬</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-secondary)" }}>No conversation selected</div>
                   {appointmentsWithoutConv.length > 0 ? (
                     <div style={{ textAlign: "center", fontSize: 13 }}>
@@ -287,7 +286,7 @@ function PatientMessagesInner() {
                         onClick={() => startConversationWithDentist(appointmentsWithoutConv[0].dentist_id)}
                         disabled={startingConv !== null}
                       >
-                        {startingConv ? "Starting…" : "💬 Start Conversation with Your Dentist"}
+                        {startingConv ? "Starting…" : "Start Conversation with Your Dentist"}
                       </button>
                     </div>
                   ) : convMetas.length === 0 ? (

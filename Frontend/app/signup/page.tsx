@@ -32,7 +32,6 @@ export default function SignupPage() {
       await register(form);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   }
