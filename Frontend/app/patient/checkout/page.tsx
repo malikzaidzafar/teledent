@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, SectionCard } from "@/components/ui/shared";
 import { useRequireAuth } from "@/lib/auth";
-import { paymentApi, type PaymentIntent } from "@/lib/api";
+import { paymentApi, appointmentApi, messagesApi, type PaymentIntent } from "@/lib/api";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -153,16 +153,21 @@ function CheckoutForm({
 // ---------------------------------------------------------------------------
 // Success screen
 // ---------------------------------------------------------------------------
-function PaymentSuccess({ onDone }: { onDone: () => void }) {
+function PaymentSuccess({ onDone, redirecting }: { onDone: () => void; redirecting: boolean }) {
   return (
     <div style={{ textAlign: "center", padding: "48px 24px" }}>
-      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 32 }}>✓</div>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#dcfce7", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 32 }}>✓</div>
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Payment Successful!</h2>
-      <p style={{ color: "var(--text-secondary)", marginBottom: 28, fontSize: 15 }}>
-        Your appointment has been confirmed. You'll receive a confirmation shortly.
+      <p style={{ color: "var(--text-secondary)", marginBottom: 8, fontSize: 15 }}>
+        Your appointment is confirmed. Your dentist has been notified.
       </p>
-      <button className="btn btn-primary" onClick={onDone}>
-        View My Appointments →
+      {redirecting ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 20 }}>Opening your conversation with your dentist…</p>
+      ) : (
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 20 }}>You can now message your dentist directly.</p>
+      )}
+      <button className="btn btn-primary" onClick={onDone} disabled={redirecting}>
+        {redirecting ? "Opening messages…" : "Go to Messages"}
       </button>
     </div>
   );
@@ -182,6 +187,7 @@ function CheckoutPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const init = useCallback(async () => {
     if (!appointmentId) {
@@ -260,7 +266,25 @@ function CheckoutPageInner() {
 
           {!loading && !error && paid && (
             <SectionCard title="">
-              <PaymentSuccess onDone={() => router.push("/patient/appointments")} />
+              <PaymentSuccess
+                redirecting={redirecting}
+                onDone={async () => {
+                  setRedirecting(true);
+                  try {
+                    // Fetch the appointment to get the dentist's user_id
+                    const appt = await appointmentApi.get(appointmentId);
+                    const dentistUserId = appt.dentist_user_id;
+                    if (dentistUserId) {
+                      const conv = await messagesApi.startConversation(dentistUserId);
+                      router.push(`/patient/messages?conv=${conv.id}`);
+                    } else {
+                      router.push("/patient/appointments");
+                    }
+                  } catch {
+                    router.push("/patient/appointments");
+                  }
+                }}
+              />
             </SectionCard>
           )}
 

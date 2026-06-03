@@ -78,7 +78,6 @@ function PatientMessagesInner() {
   async function loadAppointments() {
     try {
       const res = await appointmentApi.list(1);
-      // Only show appointments that are active (can message dentist)
       const active = (res.data || []).filter(
         a => a.status === "pending" || a.status === "confirmed" || a.status === "completed"
       );
@@ -124,15 +123,16 @@ function PatientMessagesInner() {
     } catch {}
   }
 
-  async function startConversationWithDentist(dentistId: string) {
-    setStartingConv(dentistId);
+  // WP3C FIX: pass dentist_user_id (User UUID), NOT dentist_id (Dentist UUID)
+  async function startConversationWithDentist(dentistUserId: string, displayName?: string) {
+    if (!dentistUserId) return;
+    setStartingConv(dentistUserId);
     try {
-      const conv = await messagesApi.startConversation(dentistId);
+      const conv = await messagesApi.startConversation(dentistUserId);
       await loadConversations();
-      // Open the new conversation
       const meta: ConvMeta = {
         conv,
-        otherName: conv.other_user_name ? `Dr. ${conv.other_user_name}` : "Dr. Unknown",
+        otherName: conv.other_user_name ? `Dr. ${conv.other_user_name}` : displayName || "Dr. Unknown",
         unread: 0,
       };
       openConversation(meta);
@@ -168,10 +168,19 @@ function PatientMessagesInner() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Dentist IDs already in conversations (to avoid showing duplicate "start" buttons)
-  const existingDentistIds = new Set(convMetas.map(m => m.conv.dentist_id));
-  // Active appointments without a conversation yet
-  const appointmentsWithoutConv = appointments.filter(a => !existingDentistIds.has(a.dentist_id));
+  // Dentist user_ids already in conversations (to avoid duplicate "start" buttons)
+  const existingDentistUserIds = new Set(convMetas.map(m => m.conv.dentist_id));
+
+  // Appointments without a conversation yet — check using dentist_user_id
+  const appointmentsWithoutConv = appointments.filter(a => {
+    const uid = a.dentist_user_id;
+    return uid && !existingDentistUserIds.has(uid);
+  });
+
+  // WP4B: Find confirmed appointment matching the active conversation's dentist
+  const confirmedAppt = activeConv
+    ? appointments.find(a => a.dentist_user_id === activeConv.dentist_id && a.status === "confirmed")
+    : null;
 
   return (
     <AppLayout role="patient" pageTitle="Messages">
@@ -250,20 +259,20 @@ function PatientMessagesInner() {
                           gap: 12,
                         }}
                       >
-                        <Avatar name="Dr" size={36} />
+                        <Avatar name={a.dentist_name || "Dr"} size={36} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>Your Dentist</div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{a.dentist_name || "Your Dentist"}</div>
                           <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "capitalize" }}>
                             {a.status} appointment · {new Date(a.scheduled_at).toLocaleDateString()}
                           </div>
                         </div>
                         <button
                           className="btn btn-primary btn-sm"
-                          onClick={() => startConversationWithDentist(a.dentist_id)}
-                          disabled={startingConv === a.dentist_id}
+                          onClick={() => startConversationWithDentist(a.dentist_user_id ?? "", a.dentist_name)}
+                          disabled={startingConv === a.dentist_user_id}
                           style={{ flexShrink: 0 }}
                         >
-                          {startingConv === a.dentist_id ? "…" : "Start Chat"}
+                          {startingConv === a.dentist_user_id ? "…" : "Start Chat"}
                         </button>
                       </div>
                     ))}
@@ -283,7 +292,10 @@ function PatientMessagesInner() {
                       <button
                         className="btn btn-primary"
                         style={{ marginTop: 12 }}
-                        onClick={() => startConversationWithDentist(appointmentsWithoutConv[0].dentist_id)}
+                        onClick={() => startConversationWithDentist(
+                          appointmentsWithoutConv[0].dentist_user_id ?? "",
+                          appointmentsWithoutConv[0].dentist_name
+                        )}
                         disabled={startingConv !== null}
                       >
                         {startingConv ? "Starting…" : "Start Conversation with Your Dentist"}
@@ -320,9 +332,15 @@ function PatientMessagesInner() {
                       >
                         Schedule Call
                       </button>
-                      <Link href="/patient/video" className="btn btn-primary btn-sm">
-                        Join Video
-                      </Link>
+                      {/* WP4B: Join Video only when there is a confirmed appointment with this dentist */}
+                      {confirmedAppt && (
+                        <Link
+                          href={`/patient/video?appointment_id=${confirmedAppt.id}`}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Join Video
+                        </Link>
+                      )}
                     </div>
                   </div>
 

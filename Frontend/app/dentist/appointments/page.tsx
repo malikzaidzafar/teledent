@@ -61,8 +61,8 @@ export default function DentistAppointmentsPage() {
     try {
       await appointmentApi.accept(id);
       refetch();
-    } catch (e: any) {
-      setActionError(e?.message || "Failed to confirm appointment.");
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to confirm appointment.");
     } finally {
       setConfirming(null);
     }
@@ -74,17 +74,19 @@ export default function DentistAppointmentsPage() {
     try {
       await appointmentApi.complete(id);
       refetch();
-    } catch (e: any) {
-      setActionError(e?.message || "Failed to mark as complete.");
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to mark as complete.");
     } finally {
       setCompleting(null);
     }
   }
 
-  async function handleMessage(patientId: string, apptId: string) {
+  // WP3D FIX: use patient_user_id (User UUID), NOT patient_id (Patient UUID)
+  async function handleMessage(patientUserId: string | undefined, apptId: string) {
+    if (!patientUserId) return;
     setMessaging(apptId);
     try {
-      const conv = await messagesApi.startConversation(patientId);
+      const conv = await messagesApi.startConversation(patientUserId);
       router.push(`/dentist/messages?conv=${conv.id}`);
     } catch {
       setMessaging(null);
@@ -151,7 +153,6 @@ export default function DentistAppointmentsPage() {
         ) : displayed.length === 0 ? (
           <SectionCard title="">
             <div style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>
-
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: "var(--text-secondary)" }}>
                 {tab === "pending" ? "No pending requests" : tab === "confirmed" ? "No confirmed appointments" : tab === "completed" ? "No completed appointments yet" : "No appointments found"}
               </div>
@@ -165,6 +166,8 @@ export default function DentistAppointmentsPage() {
             {displayed.map((a) => {
               const isPending   = a.status === "pending";
               const isConfirmed = a.status === "confirmed";
+              // WP6B: Use resolved patient_name instead of raw patient_id
+              const patientDisplayName = a.patient_name || `Patient #${a.patient_id.slice(0, 8).toUpperCase()}`;
 
               return (
                 <div
@@ -194,10 +197,10 @@ export default function DentistAppointmentsPage() {
 
                   {/* Avatar + patient info */}
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 180 }}>
-                    <Avatar name="Patient" size={42} />
+                    <Avatar name={patientDisplayName} size={42} />
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
-                        Patient #{a.patient_id.slice(0, 8).toUpperCase()}
+                        {patientDisplayName}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                         {a.type.replace(/_/g, " ")}
@@ -244,11 +247,11 @@ export default function DentistAppointmentsPage() {
                       </button>
                     )}
 
-                    {/* Message patient */}
+                    {/* WP3D: Message patient using patient_user_id */}
                     {(isPending || isConfirmed || a.status === "completed") && (
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => handleMessage(a.patient_id, a.id)}
+                        onClick={() => handleMessage(a.patient_user_id, a.id)}
                         disabled={messaging === a.id}
                         title="Message this patient"
                       >

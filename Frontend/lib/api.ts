@@ -155,7 +155,7 @@ export const reportApi = {
 };
 
 export const appointmentApi = {
-  create: (data: CreateAppointmentPayload) => request<{ id: string; join_url: string; status: string }>("POST", "/appointments", data),
+  create: (data: CreateAppointmentPayload) => request<Appointment>("POST", "/appointments", data),
   list: (page = 1) => request<PaginatedResponse<Appointment>>("GET", `/appointments?page=${page}`),
   get: (id: string) => request<Appointment>("GET", `/appointments/${id}`),
   update: (id: string, data: Partial<Appointment>) => request<Appointment>("PATCH", `/appointments/${id}`, data),
@@ -343,6 +343,14 @@ export interface Appointment {
   id: string;
   patient_id: string;
   dentist_id: string;
+  /** User.id of the dentist — use this for startConversation(), NOT dentist_id */
+  dentist_user_id?: string;
+  /** User.id of the patient — use this for startConversation() from dentist side */
+  patient_user_id?: string;
+  /** Resolved display name e.g. "Dr. Jane Smith" */
+  dentist_name?: string;
+  /** Resolved display name e.g. "John Doe" */
+  patient_name?: string;
   scan_id?: string;
   scheduled_at: string;
   duration_min: number;

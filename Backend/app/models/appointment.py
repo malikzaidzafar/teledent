@@ -34,7 +34,7 @@ class Appointment(Base):
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     duration_min = Column(Integer, default=30)                  # TODO: imaginary
     type = Column(SAEnum(AppointmentType), nullable=False)
-    status = Column(SAEnum(AppointmentStatus), default=AppointmentStatus.confirmed)
+    status = Column(SAEnum(AppointmentStatus), default=AppointmentStatus.pending)
     join_url = Column(String)                                   # LiveKit room URL
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

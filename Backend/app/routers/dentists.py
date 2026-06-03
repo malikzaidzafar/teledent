@@ -4,6 +4,7 @@ routers/dentists.py — Dentist listing and profile endpoints.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, timedelta
 from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.dentist import Dentist
@@ -108,3 +109,80 @@ def get_dentist(dentist_id: str, _=Depends(get_current_user), db: Session = Depe
     if not dentist:
         raise NotFoundException("Dentist")
     return _dentist_to_dict(dentist)
+
+
+@router.get("/{dentist_id}/slots")
+def get_available_slots(
+    dentist_id: str,
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    _=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Return available 30-min time slots for a dentist on a given date,
+    based on their saved schedule and existing non-cancelled bookings.
+    """
+    from app.core.exceptions import NotFoundException
+    from app.models.appointment import Appointment, AppointmentStatus
+
+    dentist = db.query(Dentist).filter(Dentist.id == dentist_id).first()
+    if not dentist:
+        raise NotFoundException("Dentist")
+
+    schedule = dentist.schedule or {}
+    available_from = schedule.get("available_from", "09:00")
+    available_until = schedule.get("available_until", "17:00")
+    working_days = schedule.get("working_days", ["Mon", "Tue", "Wed", "Thu", "Fri"])
+
+    # Parse requested date
+    try:
+        req_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return {"slots": []}
+
+    # Check working day
+    day_abbr = req_date.strftime("%a")  # "Mon", "Tue", etc.
+    if day_abbr not in working_days:
+        return {"slots": []}
+
+    # Build all 30-min slots between available_from and available_until
+    try:
+        from_h, from_m = map(int, available_from.split(":"))
+        until_h, until_m = map(int, available_until.split(":"))
+    except ValueError:
+        return {"slots": []}
+
+    start_dt = datetime(req_date.year, req_date.month, req_date.day, from_h, from_m)
+    end_dt   = datetime(req_date.year, req_date.month, req_date.day, until_h, until_m)
+
+    all_slots = []
+    cur = start_dt
+    while cur + timedelta(minutes=30) <= end_dt:
+        all_slots.append(cur)
+        cur += timedelta(minutes=30)
+
+    # Fetch existing non-cancelled appointments for this dentist on this day
+    booked = db.query(Appointment).filter(
+        Appointment.dentist_id == dentist_id,
+        Appointment.scheduled_at >= start_dt,
+        Appointment.scheduled_at < end_dt + timedelta(minutes=30),
+        Appointment.status.notin_([AppointmentStatus.cancelled]),
+    ).all()
+
+    booked_times = set()
+    for a in booked:
+        # Normalize to naive datetime for comparison
+        sa = a.scheduled_at
+        if hasattr(sa, "tzinfo") and sa.tzinfo is not None:
+            sa = sa.replace(tzinfo=None)
+        booked_times.add(sa)
+
+    now = datetime.utcnow()
+
+    available = [
+        s.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+        for s in all_slots
+        if s not in booked_times and s > now
+    ]
+
+    return {"slots": available, "date": date, "dentist_id": dentist_id}

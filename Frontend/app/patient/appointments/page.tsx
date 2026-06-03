@@ -33,11 +33,12 @@ export default function AppointmentsPage() {
     }
   }
 
-  async function handleMessage(dentistId: string, apptId: string) {
+  // WP3B FIX: use dentist_user_id (User table UUID), NOT dentist_id (Dentist table UUID)
+  async function handleMessage(dentistUserId: string | undefined, apptId: string) {
+    if (!dentistUserId) return;
     setMessaging(apptId);
     try {
-      // Create or retrieve existing conversation with this dentist
-      const conv = await messagesApi.startConversation(dentistId);
+      const conv = await messagesApi.startConversation(dentistUserId);
       router.push(`/patient/messages?conv=${conv.id}`);
     } catch {
       setMessaging(null);
@@ -51,21 +52,22 @@ export default function AppointmentsPage() {
       <div className="page-body">
         {nextAppt && (
           <div style={{ background: "linear-gradient(135deg,var(--brand-blue-light),#dbeafe)", borderRadius: "var(--radius-xl)", padding: "20px 24px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 36 }}></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-blue)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Next Appointment</div>
               <div style={{ fontWeight: 800, fontSize: 17 }}>{new Date(nextAppt.scheduled_at).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{nextAppt.type} · {nextAppt.duration_min} min Video Call</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                {nextAppt.dentist_name || "Your dentist"} · {nextAppt.type} · {nextAppt.duration_min} min Video Call
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* WP4A: "Join Call" button REMOVED from appointments page — only in Messages */}
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => handleMessage(nextAppt.dentist_id, nextAppt.id)}
+                onClick={() => handleMessage(nextAppt.dentist_user_id, nextAppt.id)}
                 disabled={messaging === nextAppt.id}
               >
                 {messaging === nextAppt.id ? "Opening…" : "Message Dentist"}
               </button>
-              {nextAppt.join_url && <Link href="/patient/video" className="btn btn-primary">Join Call </Link>}
             </div>
           </div>
         )}
@@ -91,9 +93,9 @@ export default function AppointmentsPage() {
                       <tr key={a.id}>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <Avatar name="Dr." size={32} />
+                            <Avatar name={a.dentist_name || "Dr."} size={32} />
                             <div>
-                              <div style={{ fontWeight: 600, fontSize: 13 }}>{a.type}</div>
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>{a.dentist_name || "Your Dentist"}</div>
                               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Video Consultation</div>
                             </div>
                           </div>
@@ -106,12 +108,11 @@ export default function AppointmentsPage() {
                         <td><Badge variant={sv(a.status) as "success" | "warning" | "blue" | "danger"}>{a.status}</Badge></td>
                         <td>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {a.status === "confirmed" && a.join_url && <Link href="/patient/video" className="btn btn-primary btn-sm">Join Call</Link>}
-                            {/* Message button for active appointments */}
+                            {/* WP4A: NO "Join Call" here — video call is only in Messages tab */}
                             {(a.status === "pending" || a.status === "confirmed" || a.status === "completed") && (
                               <button
                                 className="btn btn-ghost btn-sm"
-                                onClick={() => handleMessage(a.dentist_id, a.id)}
+                                onClick={() => handleMessage(a.dentist_user_id, a.id)}
                                 disabled={messaging === a.id}
                                 title="Send a message to your dentist"
                               >
@@ -128,7 +129,7 @@ export default function AppointmentsPage() {
                                 {cancelling === a.id ? "…" : "Cancel"}
                               </button>
                             )}
-                            {a.status === "completed" && <Link href={`/patient/report?scan_id=${a.scan_id}`} className="btn btn-ghost btn-sm">Report</Link>}
+                            {a.status === "completed" && a.scan_id && <Link href={`/patient/report?scan_id=${a.scan_id}`} className="btn btn-ghost btn-sm">Report</Link>}
                           </div>
                         </td>
                       </tr>
