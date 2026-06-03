@@ -19,12 +19,13 @@ from app.core.exceptions import NotFoundException, ConflictException, ForbiddenE
 
 def _stripe():
     """Return configured stripe module. Raises if secret key not set."""
-    if not settings.STRIPE_SECRET_KEY or settings.STRIPE_SECRET_KEY.startswith("sk_test_REPLACE"):
+    key = (settings.STRIPE_SECRET_KEY or "").strip()
+    if not key or key.startswith("sk_test_REPLACE") or key == "":
         raise ConflictException(
             "Stripe is not configured. Add STRIPE_SECRET_KEY to your .env file. "
             "Get test keys at https://dashboard.stripe.com/test/apikeys"
         )
-    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.api_key = key
     return stripe
 
 
@@ -48,9 +49,28 @@ def create_payment_intent(db: Session, appointment_id: str, user_id: str) -> dic
     # Return existing pending payment if already created
     existing = db.query(Payment).filter(Payment.appointment_id == appointment_id).first()
     if existing and existing.status == PaymentStatus.pending:
-        return _payment_response(existing)
+        # Verify the PaymentIntent is still valid on Stripe's side
+        try:
+            s = _stripe()
+            pi = s.PaymentIntent.retrieve(existing.stripe_payment_intent_id)
+            if pi["status"] in ("succeeded", "canceled"):
+                # Intent is dead — fall through to create a new one
+                existing.status = PaymentStatus.failed if pi["status"] == "canceled" else PaymentStatus.succeeded
+                db.commit()
+                if pi["status"] == "succeeded":
+                    _mark_succeeded(db, existing.stripe_payment_intent_id)
+                    return {**_payment_response(existing), "status": "succeeded"}
+            else:
+                return _payment_response(existing)
+        except Exception:
+            return _payment_response(existing)
     if existing and existing.status == PaymentStatus.succeeded:
-        raise ConflictException("This appointment has already been paid.")
+        # Return success status instead of raising — frontend can handle gracefully
+        return {**_payment_response(existing), "client_secret": None}
+    if existing and existing.status == PaymentStatus.failed:
+        # Delete the failed record so we can create a fresh intent
+        db.delete(existing)
+        db.commit()
 
     amount = settings.CONSULTATION_FEE_CENTS
     currency = settings.PAYMENT_CURRENCY

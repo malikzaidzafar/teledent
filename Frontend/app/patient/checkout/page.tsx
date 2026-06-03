@@ -40,22 +40,27 @@ function CheckoutForm({
     setProcessing(true);
     setErrorMsg(null);
 
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        // Stripe redirects here after 3-D Secure; we handle it in the return_url page
-        return_url: `${window.location.origin}/patient/checkout/complete?appointment_id=${appointmentId}`,
-      },
-      // Prevent redirect for cards that don't need 3DS
-      redirect: "if_required",
-    });
+    try {
+      const { error } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          // Stripe redirects here after 3-D Secure; we handle it in the return_url page
+          return_url: `${window.location.origin}/patient/checkout/complete?appointment_id=${appointmentId}`,
+        },
+        // Prevent redirect for cards that don't need 3DS
+        redirect: "if_required",
+      });
 
-    if (error) {
-      setErrorMsg(error.message ?? "Payment failed. Please try again.");
+      if (error) {
+        setErrorMsg(error.message ?? "Payment failed. Please try again.");
+        setProcessing(false);
+      } else {
+        // Payment succeeded without redirect
+        onSuccess();
+      }
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
       setProcessing(false);
-    } else {
-      // Payment succeeded without redirect
-      onSuccess();
     }
   }
 
@@ -198,6 +203,17 @@ function CheckoutPageInner() {
     try {
       const data = await paymentApi.createIntent(appointmentId);
       setIntent(data);
+      // Already paid — jump straight to success screen
+      if (data.status === "succeeded") {
+        setPaid(true);
+        setLoading(false);
+        return;
+      }
+      if (!data.client_secret) {
+        setError("Payment session could not be initialised. Please go back and try again.");
+        setLoading(false);
+        return;
+      }
       if (data.publishable_key && !data.publishable_key.includes("REPLACE")) {
         setStripePromise(loadStripe(data.publishable_key));
       } else {
