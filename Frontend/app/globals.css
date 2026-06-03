@@ -276,3 +276,8 @@ a { color: inherit; }
 @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-in-up { animation: fadeInUp 0.45s ease forwards; }
 .animate-fade-in    { animation: fadeIn 0.35s ease forwards; }
+
+/* Hide Stripe test mode badge */
+#stripe-dev-tools, .stripe-test-badge, #stripe-dev-tools-wrapper, .__PrivateStripeElement-test-mode-badge, iframe[src*="stripe.com"][src*="test_mode"] {
+  display: none !important;
+}

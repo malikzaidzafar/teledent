@@ -31,20 +31,27 @@ class UpdateAppointmentIn(BaseModel):
 
 
 def _enrich_appointment(appt, db: Session) -> dict:
-    """Serialize an Appointment model to a dict and add user_id + name fields."""
+    """Serialize an Appointment model (or enrich an already serialized dict) and add user_id + name fields."""
     d: dict = {}
-    for col in appt.__table__.columns:
-        val = getattr(appt, col.name)
-        if isinstance(val, _uuid.UUID):
-            val = str(val)
-        elif hasattr(val, "isoformat"):
-            val = val.isoformat()
-        elif hasattr(val, "value"):          # Enum
-            val = val.value
-        d[col.name] = val
+    if isinstance(appt, dict):
+        d = appt.copy()
+        dentist_id = appt.get("dentist_id")
+        patient_id = appt.get("patient_id")
+    else:
+        for col in appt.__table__.columns:
+            val = getattr(appt, col.name)
+            if isinstance(val, _uuid.UUID):
+                val = str(val)
+            elif hasattr(val, "isoformat"):
+                val = val.isoformat()
+            elif hasattr(val, "value"):          # Enum
+                val = val.value
+            d[col.name] = val
+        dentist_id = getattr(appt, "dentist_id", None)
+        patient_id = getattr(appt, "patient_id", None)
 
     # Dentist user_id + name
-    dentist = db.query(DentistModel).filter(DentistModel.id == appt.dentist_id).first()
+    dentist = db.query(DentistModel).filter(DentistModel.id == dentist_id).first()
     if dentist:
         d["dentist_user_id"] = str(dentist.user_id)
         du = db.query(User).filter(User.id == dentist.user_id).first()
@@ -54,7 +61,7 @@ def _enrich_appointment(appt, db: Session) -> dict:
         d["dentist_name"] = "Dentist"
 
     # Patient user_id + name
-    patient = db.query(Patient).filter(Patient.id == appt.patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if patient:
         d["patient_user_id"] = str(patient.user_id)
         pu = db.query(User).filter(User.id == patient.user_id).first()

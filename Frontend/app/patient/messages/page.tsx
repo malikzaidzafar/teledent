@@ -85,8 +85,8 @@ function PatientMessagesInner() {
     } catch {}
   }
 
-  async function loadConversations() {
-    setLoading(true);
+  async function loadConversations(isBackground = false) {
+    if (!isBackground) setLoading(true);
     try {
       const convs = await messagesApi.listConversations();
       const metas = await Promise.all(
@@ -104,7 +104,7 @@ function PatientMessagesInner() {
         openConversation(metas[0]);
       }
     } catch {}
-    setLoading(false);
+    if (!isBackground) setLoading(false);
   }
 
   async function openConversation(meta: ConvMeta) {
@@ -148,7 +148,7 @@ function PatientMessagesInner() {
       const sent = await messagesApi.sendMessage(activeConv.id, msg);
       setMessages(prev => [...prev, sent]);
       if (!text) setInput("");
-      loadConversations();
+      loadConversations(true);
     } catch {}
     setSending(false);
   }
@@ -179,7 +179,7 @@ function PatientMessagesInner() {
 
   // WP4B: Find confirmed appointment matching the active conversation's dentist
   const confirmedAppt = activeConv
-    ? appointments.find(a => a.dentist_user_id === activeConv.dentist_id && a.status === "confirmed")
+    ? appointments.find(a => a.dentist_user_id === activeConv.dentist_id)
     : null;
 
   return (

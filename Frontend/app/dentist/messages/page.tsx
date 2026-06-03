@@ -80,8 +80,8 @@ function DentistMessagesInner() {
     } catch {}
   }
 
-  async function loadConversations() {
-    setLoading(true);
+  async function loadConversations(isBackground = false) {
+    if (!isBackground) setLoading(true);
     try {
       const convs = await messagesApi.listConversations();
       const metas = await Promise.all(
@@ -97,7 +97,7 @@ function DentistMessagesInner() {
         openConversation(metas[0]);
       }
     } catch {}
-    setLoading(false);
+    if (!isBackground) setLoading(false);
   }
 
   async function openConversation(meta: ConvMeta) {
@@ -134,7 +134,7 @@ function DentistMessagesInner() {
     try {
       const msg = await messagesApi.sendMessage(activeConv.id, text);
       setMessages(prev => [...prev, msg]);
-      loadConversations();
+      loadConversations(true);
     } catch {}
     setSending(false);
     setShowVideoModal(false);
@@ -157,7 +157,7 @@ function DentistMessagesInner() {
       const msg = await messagesApi.sendMessage(activeConv.id, input.trim());
       setMessages(prev => [...prev, msg]);
       setInput("");
-      loadConversations();
+      loadConversations(true);
     } catch {}
     setSending(false);
   }
@@ -178,7 +178,7 @@ function DentistMessagesInner() {
 
   // WP4C: find confirmed appointment for the active conversation's patient
   const confirmedAppt = activeConv
-    ? appointments.find(a => a.patient_user_id === activeConv.patient_id && a.status === "confirmed")
+    ? appointments.find(a => a.patient_user_id === activeConv.patient_id)
     : null;
 
   return (
