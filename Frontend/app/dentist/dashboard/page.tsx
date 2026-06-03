@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 import AppLayout from "@/components/common/AppLayout";
 import { StatCard, PageHeader, SectionCard, Badge, Avatar } from "@/components/ui/shared";
 import Link from "next/link";
