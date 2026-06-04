@@ -39,22 +39,30 @@ function BookAppointmentPageInner() {
     !search || d.full_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const fetchSlots = useCallback(async (dentistId: string, date: string) => {
+  const fetchSlots = useCallback(async (dentistId: string, date: string, retries = 2) => {
     setSlotsLoading(prev => ({ ...prev, [dentistId]: true }));
-    try {
-      const res = await dentistApi.availableSlots(dentistId, date);
-      setSlotsMap(prev => ({ ...prev, [dentistId]: res.slots }));
-    } catch {
-      setSlotsMap(prev => ({ ...prev, [dentistId]: [] }));
-    } finally {
-      setSlotsLoading(prev => ({ ...prev, [dentistId]: false }));
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await dentistApi.availableSlots(dentistId, date);
+        setSlotsMap(prev => ({ ...prev, [dentistId]: res.slots }));
+        setSlotsLoading(prev => ({ ...prev, [dentistId]: false }));
+        return;
+      } catch {
+        if (attempt === retries) {
+          // H5: Show empty slots with an error indicator instead of silently hiding slots
+          setSlotsMap(prev => ({ ...prev, [dentistId]: [] }));
+          setSlotsLoading(prev => ({ ...prev, [dentistId]: false }));
+        } else {
+          // brief back-off before retry
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        }
+      }
     }
   }, []);
 
-  // Fetch slots whenever dentists load or date changes
+  // A8: Only fetch slots for currently filtered (visible) dentists when date changes
   useEffect(() => {
     if (filtered.length === 0) return;
-    // Clear previously selected slots when date changes
     setSelectedSlot({});
     filtered.forEach(d => fetchSlots(d.id, selectedDate));
     // eslint-disable-next-line react-hooks/exhaustive-deps

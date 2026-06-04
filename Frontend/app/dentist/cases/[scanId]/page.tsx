@@ -320,15 +320,20 @@ export default function DentistReviewPage() {
                   </button>
 
                   {report?.pdf_url && (
-                    <a
-                      href={reportApi.pdfUrl(report.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
                       className="btn btn-outline"
                       style={{ width: "100%", justifyContent: "center" }}
+                      onClick={async () => {
+                        try {
+                          const url = await reportApi.downloadPdf(report.id);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = `report-${report.id}.pdf`; a.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 5000);
+                        } catch {}
+                      }}
                     >
                       Download PDF Report
-                    </a>
+                    </button>
                   )}
                 </div>
               </SectionCard>

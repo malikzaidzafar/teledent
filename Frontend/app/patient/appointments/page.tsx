@@ -60,7 +60,14 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {/* WP4A: "Join Call" button REMOVED from appointments page — only in Messages */}
+              {nextAppt.status === "confirmed" && (
+                <Link
+                  href={`/patient/video?appointment_id=${nextAppt.id}`}
+                  className="btn btn-primary btn-sm"
+                >
+                  Join Call
+                </Link>
+              )}
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => handleMessage(nextAppt.dentist_user_id, nextAppt.id)}
@@ -108,6 +115,14 @@ export default function AppointmentsPage() {
                         <td><Badge variant={sv(a.status) as "success" | "warning" | "blue" | "danger"}>{a.status}</Badge></td>
                         <td>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {a.status === "confirmed" && (
+                              <Link
+                                href={`/patient/video?appointment_id=${a.id}`}
+                                className="btn btn-primary btn-sm"
+                              >
+                                Join Call
+                              </Link>
+                            )}
                             {/* WP4A: NO "Join Call" here — video call is only in Messages tab */}
                             {(a.status === "pending" || a.status === "confirmed" || a.status === "completed") && (
                               <button

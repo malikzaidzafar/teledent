@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { notificationApi } from "@/lib/api";
 
 interface NavItem { href: string; label: string; icon: string; }
 
@@ -50,6 +52,17 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
   const userEmail = user?.email || emailProp || `${role}@teledent.ai`;
   const initials = userName.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
+  // C5: Poll unread notification count every 30 seconds
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = () =>
+      notificationApi.list(1, true).then(r => setUnreadCount(r.unread)).catch(() => {});
+    fetchUnread();
+    const id = setInterval(fetchUnread, 30_000);
+    return () => clearInterval(id);
+  }, [user]);
+
   return (
     <>
       {/* Overlay */}
@@ -70,10 +83,26 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
           <div className="nav-section-label">Main Menu</div>
           {nav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const showBadge = unreadCount > 0 && (item.href.includes("appointments") || item.href.includes("messages"));
             return (
               <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`} onClick={close}>
                 {item.icon && <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: active ? 1 : 0.7 }}>{item.icon}</span>}
                 {item.label}
+                {showBadge && (
+                  <span style={{
+                    marginLeft: "auto",
+                    background: "#dc2626",
+                    color: "#fff",
+                    borderRadius: 999,
+                    padding: "1px 6px",
+                    fontSize: 10,
+                    fontWeight: 800,
+                    minWidth: 16,
+                    textAlign: "center",
+                  }}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

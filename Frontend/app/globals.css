@@ -281,3 +281,20 @@ a { color: inherit; }
 #stripe-dev-tools, .stripe-test-badge, #stripe-dev-tools-wrapper, .__PrivateStripeElement-test-mode-badge, iframe[src*="stripe.com"][src*="test_mode"] {
   display: none !important;
 }
+
+/* ── LiveKit video grid overrides ────────────────────────────── */
+.lk-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+.lk-participant-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+

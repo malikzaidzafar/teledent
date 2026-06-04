@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@livekit/components-styles";
 import { AuthProvider } from "@/lib/auth";
 import GoogleProvider from "@/components/common/GoogleProvider";
 

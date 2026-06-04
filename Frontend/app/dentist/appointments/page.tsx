@@ -35,6 +35,9 @@ export default function DentistAppointmentsPage() {
   const [completing, setCompleting] = useState<string | null>(null);
   const [messaging, setMessaging] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ id: string; patientName: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   if (authLoading) return null;
 
@@ -78,6 +81,22 @@ export default function DentistAppointmentsPage() {
       setActionError(e instanceof Error ? e.message : "Failed to mark as complete.");
     } finally {
       setCompleting(null);
+    }
+  }
+
+  async function handleReject() {
+    if (!rejectModal || !rejectReason.trim()) return;
+    setRejecting(true);
+    setActionError(null);
+    try {
+      await appointmentApi.reject(rejectModal.id, rejectReason.trim());
+      setRejectModal(null);
+      setRejectReason("");
+      refetch();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to reject appointment.");
+    } finally {
+      setRejecting(false);
     }
   }
 
@@ -236,6 +255,16 @@ export default function DentistAppointmentsPage() {
                       </button>
                     )}
 
+                    {isPending && (
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontWeight: 700 }}
+                        onClick={() => { setRejectModal({ id: a.id, patientName: patientDisplayName }); setRejectReason(""); }}
+                      >
+                        Reject
+                      </button>
+                    )}
+
                     {isConfirmed && (
                       <button
                         className="btn btn-sm"
@@ -245,6 +274,15 @@ export default function DentistAppointmentsPage() {
                       >
                         {completing === a.id ? "Saving…" : "Mark Complete"}
                       </button>
+                    )}
+
+                    {isConfirmed && (
+                      <a
+                        href={`/dentist/video?appointment_id=${a.id}`}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Start Call
+                      </a>
                     )}
 
                     {/* WP3D: Message patient using patient_user_id */}
@@ -265,6 +303,37 @@ export default function DentistAppointmentsPage() {
           </div>
         )}
       </div>
+
+      {/* B5: Reject appointment modal */}
+      {rejectModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", padding: 28, width: "100%", maxWidth: 440, boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800 }}>Reject Appointment</h3>
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
+              Please provide a reason for rejecting <strong>{rejectModal.patientName}</strong>&apos;s appointment.
+              They will be notified by email.
+            </p>
+            <textarea
+              className="input"
+              rows={4}
+              placeholder="Enter rejection reason…"
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              style={{ resize: "vertical", marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost" onClick={() => setRejectModal(null)} disabled={rejecting}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                onClick={handleReject}
+                disabled={rejecting || !rejectReason.trim()}
+              >
+                {rejecting ? "Rejecting…" : "Reject Appointment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

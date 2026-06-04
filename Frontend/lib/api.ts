@@ -151,7 +151,16 @@ export const reportApi = {
   get: (id: string) => request<Report>("GET", `/reports/${id}`),
   create: (data: CreateReportPayload) => request<{ report_id: string; created_at: string; pdf_url: string }>("POST", "/reports", data),
   update: (id: string, data: Partial<CreateReportPayload>) => request<Report>("PATCH", `/reports/${id}`, data),
-  pdfUrl: (id: string) => `${BASE}/reports/${id}/pdf?token=${tokenStore.getAccess() || ""}`,
+  // G8: Fetch PDF with Authorization header, return an object URL instead of exposing token in URL
+  downloadPdf: async (id: string): Promise<string> => {
+    const token = tokenStore.getAccess();
+    const res = await fetch(`${BASE}/reports/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(res.status, "Failed to download report PDF.");
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
 };
 
 export const appointmentApi = {
@@ -161,13 +170,32 @@ export const appointmentApi = {
   update: (id: string, data: Partial<Appointment>) => request<Appointment>("PATCH", `/appointments/${id}`, data),
   cancel: (id: string) => request<void>("DELETE", `/appointments/${id}`),
   accept: (id: string) => request<Appointment>("POST", `/appointments/${id}/accept`),
+  reject: (id: string, reason: string) => request<Appointment>("POST", `/appointments/${id}/reject`, { reason }),
   complete: (id: string) => request<{ message: string }>("POST", `/appointments/${id}/complete`),
 };
 
 export const videoApi = {
-  createSession: (appointment_id: string) => request<{ session_id: string; room_name: string }>("POST", "/video/sessions", { appointment_id }),
-  getToken: (session_id: string) => request<{ token: string; room_name: string; livekit_url: string; expires_at: string }>("POST", `/video/sessions/${session_id}/token`),
-  endSession: (session_id: string) => request<{ message: string }>("POST", `/video/sessions/${session_id}/end`),
+  createSession: (appointment_id: string) =>
+    request<{ session_id: string; room_name: string }>("POST", "/video/sessions", { appointment_id }),
+  getSessionByAppointment: (appointment_id: string) =>
+    request<{ session_id: string; room_name: string }>("GET", `/video/sessions/by-appointment/${appointment_id}`),
+  getToken: (session_id: string) =>
+    request<{ token: string; room_name: string; livekit_url: string; expires_at: string; identity: string; display_name: string }>(
+      "POST", `/video/sessions/${session_id}/token`
+    ),
+  endSession: (session_id: string) =>
+    request<{ message: string }>("POST", `/video/sessions/${session_id}/end`),
+  saveNotes: (session_id: string, notes: string) =>
+    request<{ message: string; notes: string }>("POST", `/video/sessions/${session_id}/notes`, { notes }),
+};
+
+export const notificationApi = {
+  list: (page = 1, unread_only = false) =>
+    request<{ data: Notification[]; total: number; unread: number; page: number; limit: number }>(
+      "GET", `/notifications?page=${page}&unread_only=${unread_only}`
+    ),
+  markRead: (id: string) => request<{ message: string }>("POST", `/notifications/${id}/read`),
+  markAllRead: () => request<{ message: string }>("POST", "/notifications/read-all"),
 };
 
 export const dentistApi = {
@@ -374,6 +402,16 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   pages: number;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
 }
 
 export interface SignedUploadResponse {
