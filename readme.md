@@ -1,3 +1,13 @@
+---
+title: Teledent FastAPI
+emoji: 🦷
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_file: Backend/run.py
+pinned: false
+---
+
 # Teledent AI — Frontend Web Application
 
 Welcome to the frontend repository for **Teledent AI: Smart Dental Scanner and Live Diagnosis Platform for Remote Patient Care**. This is a custom-built, cloud-based web application designed to bridge the gap between patients and dental professionals through automated AI screening and secure video consultations.
