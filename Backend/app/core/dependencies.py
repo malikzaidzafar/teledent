@@ -2,7 +2,7 @@
 core/dependencies.py — FastAPI dependency injection.
 get_current_user, require_role guards used in routers.
 """
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
@@ -11,10 +11,15 @@ from app.core.exceptions import UnauthorizedException, ForbiddenException
 from app.models.user import User
 
 
-def get_token(authorization: Optional[str] = Header(None)) -> str:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise UnauthorizedException("Missing or malformed Authorization header.")
-    return authorization.split(" ", 1)[1]
+def get_token(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None),
+) -> str:
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1]
+    if token:
+        return token
+    raise UnauthorizedException("Missing or malformed Authorization header.")
 
 
 def get_current_user(token: str = Depends(get_token), db: Session = Depends(get_db)) -> User:

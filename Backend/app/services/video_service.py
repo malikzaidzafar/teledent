@@ -26,6 +26,16 @@ def _generate_livekit_token(room_name: str, participant_identity: str) -> str:
 
 
 def create_session(db: Session, appointment_id: str) -> VideoSession:
+    # Check if a session already exists for this appointment to avoid unique constraint violation
+    existing = db.query(VideoSession).filter(VideoSession.appointment_id == appointment_id).first()
+    if existing:
+        if existing.status == VideoSessionStatus.ended:
+            existing.status = VideoSessionStatus.active
+            existing.ended_at = None
+            db.commit()
+            db.refresh(existing)
+        return existing
+
     room_name = f"teledent-{appointment_id}"
     session = VideoSession(
         id=uuid.uuid4(),
@@ -48,6 +58,28 @@ def get_session(db: Session, session_id: str) -> VideoSession:
 
 def get_token(db: Session, session_id: str, current_user) -> dict:
     session = get_session(db, session_id)
+    
+    # Check if the user is a participant of the appointment
+    from app.models.appointment import Appointment
+    from app.models.patient import Patient
+    from app.models.dentist import Dentist
+    from app.core.exceptions import ForbiddenException
+    
+    appt = db.query(Appointment).filter(Appointment.id == session.appointment_id).first()
+    if not appt:
+        raise NotFoundException("Appointment", str(session.appointment_id))
+        
+    if current_user.role == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if not patient or str(appt.patient_id) != str(patient.id):
+            raise ForbiddenException("You are not a participant in this video session.")
+    elif current_user.role == "dentist":
+        dentist = db.query(Dentist).filter(Dentist.user_id == current_user.id).first()
+        if not dentist or str(appt.dentist_id) != str(dentist.id):
+            raise ForbiddenException("You are not a participant in this video session.")
+    elif current_user.role != "admin":
+        raise ForbiddenException("Access denied.")
+
     expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
     token = _generate_livekit_token(session.room_name, str(current_user.id))
     return {

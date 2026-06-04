@@ -29,6 +29,7 @@ resend==2.30.1
 
 # PDF (WeasyPrint + Jinja2) — pure Python, no browser install required
 weasyprint==62.3
+pydyf<0.11.0
 jinja2==3.1.4
 
 # AI / ML (dental vision + explanation)

@@ -65,7 +65,11 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    for attr, val in list(s.__dict__.items()):
+        if isinstance(val, str):
+            setattr(s, attr, val.strip().strip("'\""))
+    return s
 
 
 settings = get_settings()

@@ -151,7 +151,7 @@ export const reportApi = {
   get: (id: string) => request<Report>("GET", `/reports/${id}`),
   create: (data: CreateReportPayload) => request<{ report_id: string; created_at: string; pdf_url: string }>("POST", "/reports", data),
   update: (id: string, data: Partial<CreateReportPayload>) => request<Report>("PATCH", `/reports/${id}`, data),
-  pdfUrl: (id: string) => `${BASE}/reports/${id}/pdf`,
+  pdfUrl: (id: string) => `${BASE}/reports/${id}/pdf?token=${tokenStore.getAccess() || ""}`,
 };
 
 export const appointmentApi = {
