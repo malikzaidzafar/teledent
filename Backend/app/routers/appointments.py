@@ -2,7 +2,7 @@
 routers/appointments.py — Appointment booking and management.
 """
 import uuid as _uuid
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -13,6 +13,13 @@ from app.services import appointment_service
 from app.models.dentist import Dentist as DentistModel
 from app.models.patient import Patient
 from app.models.user import User
+
+try:
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+    _limiter = Limiter(key_func=get_remote_address)
+except ImportError:
+    _limiter = None
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
@@ -28,6 +35,11 @@ class CreateAppointmentIn(BaseModel):
 class UpdateAppointmentIn(BaseModel):
     scheduled_at: Optional[datetime] = None
     status: Optional[str] = None
+
+
+class PatientUpdateAppointmentIn(BaseModel):
+    """Patients may only reschedule — they cannot touch status."""
+    scheduled_at: Optional[datetime] = None
 
 
 def _enrich_appointment(appt, db: Session) -> dict:
@@ -74,7 +86,9 @@ def _enrich_appointment(appt, db: Session) -> dict:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("patient"))])
-def create_appointment(body: CreateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+def create_appointment(request: Request, body: CreateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    if _limiter:
+        _limiter.limit("10/minute")(lambda r: None)(request)
     appt = appointment_service.create_appointment(db, str(current_user.id), body.model_dump())
     return _enrich_appointment(appt, db)
 
@@ -94,7 +108,12 @@ def get_appointment(appt_id: str, current_user=Depends(get_current_user), db: Se
 
 @router.patch("/{appt_id}")
 def update_appointment(appt_id: str, body: UpdateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    appt = appointment_service.update_appointment(db, appt_id, body.model_dump(exclude_none=True), current_user)
+    from app.core.exceptions import ForbiddenException
+    data = body.model_dump(exclude_none=True)
+    # Patients must not be able to mutate status directly
+    if current_user.role == "patient" and "status" in data:
+        raise ForbiddenException("Patients cannot change appointment status directly.")
+    appt = appointment_service.update_appointment(db, appt_id, data, current_user)
     return _enrich_appointment(appt, db)
 
 
@@ -103,13 +122,23 @@ def cancel_appointment(appt_id: str, current_user=Depends(get_current_user), db:
     appointment_service.cancel_appointment(db, appt_id, current_user)
 
 
+class RejectAppointmentIn(BaseModel):
+    reason: str
+
+
 @router.post("/{appt_id}/accept", dependencies=[Depends(require_role("dentist"))])
 def accept_appointment(appt_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     appt = appointment_service.accept_appointment(db, appt_id, current_user.id)
     return _enrich_appointment(appt, db)
 
 
+@router.post("/{appt_id}/reject", dependencies=[Depends(require_role("dentist"))])
+def reject_appointment(appt_id: str, body: RejectAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    appt = appointment_service.reject_appointment(db, appt_id, str(current_user.id), body.reason)
+    return _enrich_appointment(appt, db)
+
+
 @router.post("/{appt_id}/complete", dependencies=[Depends(require_role("dentist"))])
 def complete_appointment(appt_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    appointment_service.complete_appointment(db, appt_id, current_user.id)
+    appointment_service.complete_appointment(db, appt_id, str(current_user.id))
     return {"message": "Appointment marked as completed."}
