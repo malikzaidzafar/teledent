@@ -505,7 +505,7 @@ export interface AdminStats {
 
 export interface SharedReport {
   report_id: string;
-  final_diagnosis: string;
+  final_diagnosis: string | null;
   created_at: string | null;
   pdf_url: string | null;
   is_auto_generated: boolean;
@@ -529,15 +529,6 @@ export interface MessageOut {
   text: string;
   is_read: boolean;
   sent_at: string;
-}
-
-export interface SharedReport {
-  report_id: string;
-  final_diagnosis: string | null;
-  created_at: string | null;
-  pdf_url: string | null;
-  is_auto_generated: boolean;
-  shared_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
