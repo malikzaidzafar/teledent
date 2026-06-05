@@ -36,9 +36,11 @@ class Appointment(Base):
     type = Column(SAEnum(AppointmentType), nullable=False)
     status = Column(SAEnum(AppointmentStatus), default=AppointmentStatus.pending)
     join_url = Column(String)                                   # LiveKit room URL
+    notes = Column(String(2000), nullable=True)                 # Clinical notes / rejection reason
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     patient = relationship("Patient", back_populates="appointments")
     dentist = relationship("Dentist", back_populates="appointments")
     scan = relationship("Scan", back_populates="appointments")
     video_session = relationship("VideoSession", back_populates="appointment", uselist=False)
+    shared_reports = relationship("AppointmentReport", back_populates="appointment", cascade="all, delete-orphan")

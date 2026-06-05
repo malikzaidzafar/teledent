@@ -151,7 +151,7 @@ export const reportApi = {
   get: (id: string) => request<Report>("GET", `/reports/${id}`),
   create: (data: CreateReportPayload) => request<{ report_id: string; created_at: string; pdf_url: string }>("POST", "/reports", data),
   update: (id: string, data: Partial<CreateReportPayload>) => request<Report>("PATCH", `/reports/${id}`, data),
-  // G8: Fetch PDF with Authorization header, return an object URL instead of exposing token in URL
+  // Stream PDF bytes through the API (auth-checked), return a blob object URL.
   downloadPdf: async (id: string): Promise<string> => {
     const token = tokenStore.getAccess();
     const res = await fetch(`${BASE}/reports/${id}/pdf`, {
@@ -172,6 +172,11 @@ export const appointmentApi = {
   accept: (id: string) => request<Appointment>("POST", `/appointments/${id}/accept`),
   reject: (id: string, reason: string) => request<Appointment>("POST", `/appointments/${id}/reject`, { reason }),
   complete: (id: string) => request<{ message: string }>("POST", `/appointments/${id}/complete`),
+  reschedule: (id: string, data: { scheduled_at: string; duration_min?: number }) =>
+    request<Appointment>("POST", `/appointments/${id}/reschedule`, data),
+  listSharedReports: (id: string) => request<SharedReport[]>("GET", `/appointments/${id}/reports`),
+  shareReports: (id: string, report_ids: string[]) => request<{ added: string[] }>("POST", `/appointments/${id}/reports`, { report_ids }),
+  unshareReport: (id: string, report_id: string) => request<void>("DELETE", `/appointments/${id}/reports/${report_id}`),
 };
 
 export const videoApi = {
@@ -187,6 +192,8 @@ export const videoApi = {
     request<{ message: string }>("POST", `/video/sessions/${session_id}/end`),
   saveNotes: (session_id: string, notes: string) =>
     request<{ message: string; notes: string }>("POST", `/video/sessions/${session_id}/notes`, { notes }),
+  declineSession: (session_id: string) =>
+    request<{ message: string }>("POST", `/video/sessions/${session_id}/decline`),
 };
 
 export const notificationApi = {
@@ -194,6 +201,7 @@ export const notificationApi = {
     request<{ data: Notification[]; total: number; unread: number; page: number; limit: number }>(
       "GET", `/notifications?page=${page}&unread_only=${unread_only}`
     ),
+  counts: () => request<{ appointments: number; messages: number; total: number }>("GET", "/notifications/counts"),
   markRead: (id: string) => request<{ message: string }>("POST", `/notifications/${id}/read`),
   markAllRead: () => request<{ message: string }>("POST", "/notifications/read-all"),
 };
@@ -242,6 +250,8 @@ export const messagesApi = {
     request<ConversationOut>("POST", "/messages", { other_user_id: otherUserId }),
   unreadCount: (conversationId: string) =>
     request<{ conversation_id: string; unread: number }>("GET", `/messages/${conversationId}/unread-count`),
+  unreadTotal: () =>
+    request<{ unread: number }>("GET", "/messages/unread-total"),
 };
 
 export const filesApi = {
@@ -394,6 +404,7 @@ export interface CreateAppointmentPayload {
   duration_min?: number;
   type: string;
   scan_id?: string;
+  report_ids?: string[];
 }
 
 export interface PaginatedResponse<T> {
@@ -487,6 +498,15 @@ export interface AdminStats {
   total_video_sessions: number;
   new_patients_this_week: number;
   scans_this_month: number;
+}
+
+export interface SharedReport {
+  report_id: string;
+  final_diagnosis: string;
+  created_at: string | null;
+  pdf_url: string | null;
+  is_auto_generated: boolean;
+  shared_at: string | null;
 }
 
 export interface ConversationOut {

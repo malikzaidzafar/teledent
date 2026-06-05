@@ -3,6 +3,8 @@ import "./globals.css";
 import "@livekit/components-styles";
 import { AuthProvider } from "@/lib/auth";
 import GoogleProvider from "@/components/common/GoogleProvider";
+import { WebSocketProvider } from "@/lib/websocket-context";
+import IncomingCallModal from "@/components/common/IncomingCallModal";
 
 export const metadata: Metadata = {
   title: {
@@ -35,7 +37,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body><GoogleProvider><AuthProvider>{children}</AuthProvider></GoogleProvider></body>
+      <body><GoogleProvider><AuthProvider><WebSocketProvider>{children}<IncomingCallModal /></WebSocketProvider></AuthProvider></GoogleProvider></body>
     </html>
   );
 }

@@ -30,11 +30,9 @@ COPY --chown=user Backend/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
+# Keras model files (best_xray_3class.keras, vgg16_final_best.keras) are
+# included automatically — they live inside Backend/ and land at /app/
 COPY --chown=user Backend/ .
-
-# Copy model files
-COPY --chown=user xray_best.pt xray_best.pt
-COPY --chown=user teledent_3class_models/ teledent_3class_models/
 
 EXPOSE 7860
 

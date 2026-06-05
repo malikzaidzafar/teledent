@@ -20,7 +20,7 @@ const DENTAL_FACTS = [
 
 const STEPS = [
   { id: 1, label: "Uploading image to secure server",      desc: "Encrypted transfer to Cloudinary CDN" },
-  { id: 2, label: "Running YOLOv8 detection model",        desc: "Detecting conditions in your scan" },
+  { id: 2, label: "Running VGG16 classification model",    desc: "Classifying dental conditions in your scan" },
   { id: 3, label: "Generating clinical AI report",         desc: "Gemini enriches findings with explanations" },
   { id: 4, label: "Preparing your results",                desc: "Building your personalised PDF report" },
 ];
@@ -43,7 +43,7 @@ export default function ProcessingScreen({ scanId, onComplete, onError, onRetry 
   useEffect(() => {
     // Step 1 → 2 after 1.5s (upload already done by the time this renders)
     const t1 = setTimeout(() => setCurrentStep(2), 1500);
-    // Step 2 → 3 after 6s (YOLO takes ~2-3s, give buffer)
+    // Step 2 → 3 after 6s (CNN inference takes ~2-3s, give buffer)
     const t2 = setTimeout(() => setCurrentStep(3), 6000);
     // Step 3 → 4 after 16s (Gemini + PDF takes ~10-12s)
     const t3 = setTimeout(() => setCurrentStep(4), 16000);

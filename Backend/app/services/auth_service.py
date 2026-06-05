@@ -109,12 +109,17 @@ def logout_user(refresh_token: str):
 
 
 def forgot_password(db: Session, email: str):
+    import logging
+    _logger = logging.getLogger(__name__)
     user = db.query(User).filter(User.email == email).first()
     if user:
-        token = create_reset_token(str(user.id))
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-        from app.services.email_service import send_reset_email
-        send_reset_email(user.email, reset_url)
+        try:
+            token = create_reset_token(str(user.id))
+            reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+            from app.services.email_service import send_reset_email
+            send_reset_email(user.email, reset_url)
+        except Exception as exc:
+            _logger.warning("Password reset email failed for user %s: %s", user.id, exc)
     # Always return success to prevent email enumeration
 
 

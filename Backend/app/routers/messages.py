@@ -153,6 +153,31 @@ def create_conversation(
     )
 
 
+@router.get("/unread-total")
+def unread_total(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the total unread message count across all conversations."""
+    # Get all conversations the user participates in
+    convs = db.query(Conversation).filter(
+        (Conversation.patient_id == current_user.id) |
+        (Conversation.dentist_id == current_user.id)
+    ).all()
+    total = 0
+    for conv in convs:
+        total += (
+            db.query(Message)
+            .filter(
+                Message.conversation_id == conv.id,
+                Message.sender_id != current_user.id,
+                Message.is_read == False,
+            )
+            .count()
+        )
+    return {"unread": total}
+
+
 @router.get("/{conversation_id}", response_model=ConversationOut)
 def get_conversation(
     conversation_id: str,

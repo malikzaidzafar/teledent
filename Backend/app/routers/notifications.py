@@ -73,3 +73,31 @@ def mark_all_read(
     ).update({"is_read": True})
     db.commit()
     return {"message": "All notifications marked as read."}
+
+
+@router.get("/counts")
+def notification_counts(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return separate unread counts for appointments and messages notifications."""
+    appointment_types = [
+        "appointment.booked", "appointment.new_request", "appointment.confirmed",
+        "appointment.cancelled", "appointment.completed", "appointment.reminder",
+        "call.started", "call.missed",
+    ]
+    message_types = ["message.new"]
+
+    appt_count = db.query(Notification).filter(
+        Notification.user_id == str(current_user.id),
+        Notification.is_read == False,
+        Notification.type.in_(appointment_types),
+    ).count()
+
+    msg_count = db.query(Notification).filter(
+        Notification.user_id == str(current_user.id),
+        Notification.is_read == False,
+        Notification.type.in_(message_types),
+    ).count()
+
+    return {"appointments": appt_count, "messages": msg_count, "total": appt_count + msg_count}

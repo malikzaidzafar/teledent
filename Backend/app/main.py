@@ -23,7 +23,7 @@ from app.core.exceptions import (
     AppException, app_exception_handler,
     validation_exception_handler, generic_exception_handler,
 )
-from app.routers import auth, patients, scans, reports, appointments, video, files, dentists, admin_stats, messages, payments, notifications
+from app.routers import auth, patients, scans, reports, appointments, video, files, dentists, admin_stats, messages, payments, notifications, admin, ws
 
 # Configure Cloudinary once at startup
 cloudinary.config(
@@ -80,6 +80,8 @@ app.include_router(dentists.router)
 app.include_router(admin_stats.router)
 app.include_router(messages.router)
 app.include_router(payments.router)
+app.include_router(admin.router)
+app.include_router(ws.router)
 
 
 @app.get("/", tags=["Health"])

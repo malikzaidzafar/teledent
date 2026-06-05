@@ -15,9 +15,6 @@ python-jose[cryptography]==3.3.0
 email-validator==2.2.0
 google-auth==2.30.0
 
-# Redis (refresh token blacklist)
-redis==5.0.4
-
 # Cloudinary
 cloudinary==1.36.0
 
@@ -33,10 +30,9 @@ pydyf<0.11.0
 jinja2==3.1.4
 
 # AI / ML (dental vision + explanation)
-transformers==4.44.0
-torch==2.3.1
+numpy>=1.26.0             # directly used in keras_oral_service + keras_xray_service
+tensorflow>=2.16.0        # Keras models: VGG16 oral (vgg16_final_best.keras) + CNN X-ray (best_xray_3class.keras)
 Pillow==10.4.0
-ultralytics==8.3.50
 langchain-google-genai==1.0.10
 google-genai>=1.0.0
 

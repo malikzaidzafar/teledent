@@ -2,7 +2,7 @@
 conftest.py — Shared fixtures for all test cases.
 
 Uses a SQLite file-based database so no running PostgreSQL is required.
-Mocks out external services (Cloudinary, YOLO, Gemini, LiveKit, PDF, Email)
+Mocks out external services (Cloudinary, CNN/Keras, Gemini, LiveKit, PDF, Email)
 so tests are fast, deterministic, and run fully offline.
 """
 import uuid
@@ -124,16 +124,20 @@ def app_client():
     }
     mock_cloudinary.uploader.destroy.return_value = {"result": "ok"}
 
-    # Mock YOLO detection
-    mock_yolo_result = {
-        "detections": [
-            {
-                "class": "Caries",
-                "confidence": 0.91,
-                "bbox": [10, 20, 100, 120],
-            }
+    # Mock CNN X-ray Keras classification result (panoramic scan → caries at 91%)
+    mock_keras_xray_result = {
+        "success": True,
+        "top_class": "caries",
+        "top_display": "Dental Caries",
+        "top_confidence": 0.91,
+        "all_probabilities": {
+            "caries": 0.91,
+            "impacted_tooth": 0.05,
+            "periapical_lesion": 0.04,
+        },
+        "findings": [
+            {"class": "caries", "display": "Dental Caries", "confidence": 0.91},
         ],
-        "annotated_image_url": "https://res.cloudinary.com/test/annotated.jpg",
     }
 
     # Mock Gemini / Vision enrichment
@@ -156,9 +160,29 @@ def app_client():
     mock_pdf_url = "https://res.cloudinary.com/test/reports/report.pdf"
 
     patches = [
-        patch("app.services.yolo_service.run_detection", return_value=mock_yolo_result),
         patch(
-            "app.services.vision_service.DentalVisionService.analyze_with_yolo_context",
+            "app.services.keras_xray_service.run_keras_xray_classification",
+            return_value=mock_keras_xray_result,
+        ),
+        patch(
+            "app.services.vision_service.DentalVisionService.analyze_with_keras_xray_context",
+            return_value=mock_gemini_result,
+        ),
+        patch(
+            "app.services.keras_oral_service.run_keras_classification",
+            return_value={
+                "success": True,
+                "top_class": "cavity",
+                "top_display": "Cavity",
+                "top_confidence": 0.91,
+                "all_probabilities": {
+                    "cavity": 0.91, "gingivitis": 0.05,
+                    "discoloration": 0.02, "ulcer": 0.02,
+                },
+            },
+        ),
+        patch(
+            "app.services.vision_service.DentalVisionService.analyze_with_keras_context",
             return_value=mock_gemini_result,
         ),
         patch(

@@ -24,7 +24,7 @@ class Analysis(Base):
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), unique=True, nullable=False)
     status = Column(SAEnum(AnalysisStatus), default=AnalysisStatus.pending)
     confidence_score = Column(Float)
-    findings = Column(JSONB, default=list)       # YOLO+Gemini enriched findings list
+    findings = Column(JSONB, default=list)       # CNN+Gemini enriched findings list
     ai_explanation = Column(JSONB, default=dict) # Gemini patient-facing text & risk summary
     model_version = Column(String(50))
     processed_at = Column(DateTime(timezone=True))

@@ -94,6 +94,35 @@ Keep it clear and concise.
     def _get_template_explanation(self, prediction, confidence_pct, risk, urgency):
         """Fallback template explanations"""
         explanations = {
+            # ── VGG16 model classes (primary) ─────────────────────────────
+            "Cavity": {
+                "explanation": f"Our AI detected a cavity with {confidence_pct}% confidence. This indicates tooth decay where enamel has been damaged and may require filling.",
+                "recommendations": [
+                    "Visit a dentist for examination and possible filling",
+                    "Reduce sugar and acidic food intake",
+                    "Use fluoride toothpaste twice daily",
+                    "Apply clove oil for temporary pain relief if needed"
+                ]
+            },
+            "Tooth Discoloration": {
+                "explanation": f"Tooth discoloration detected with {confidence_pct}% confidence. This can result from surface stains (coffee, tea, smoking) or internal factors.",
+                "recommendations": [
+                    "Professional cleaning or polishing recommended",
+                    "Reduce staining drinks and rinse with water after consuming them",
+                    "Try oil pulling with coconut oil daily",
+                    "Ask your dentist about safe whitening options"
+                ]
+            },
+            "Mouth Ulcer": {
+                "explanation": f"The analysis shows a mouth ulcer with {confidence_pct}% confidence. These are common and usually heal within 1–2 weeks with proper care.",
+                "recommendations": [
+                    "Avoid spicy and acidic foods",
+                    "Rinse with warm saltwater after meals",
+                    "Apply aloe vera gel or honey for soothing relief",
+                    "See a dentist if it persists beyond 2 weeks"
+                ]
+            },
+            # ── Legacy YOLO / Gemini class names (kept for backward compat) ─
             "Calculus": {
                 "explanation": f"Based on the analysis with {confidence_pct}% confidence, we detected calculus (tartar) on your teeth. This is hardened plaque that can only be removed by professional cleaning.",
                 "recommendations": [

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
-import { notificationApi } from "@/lib/api";
+import { notificationApi, messagesApi } from "@/lib/api";
 
 interface NavItem { href: string; label: string; icon: string; }
 
@@ -52,14 +52,40 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
   const userEmail = user?.email || emailProp || `${role}@teledent.ai`;
   const initials = userName.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
-  // C5: Poll unread notification count every 30 seconds
-  const [unreadCount, setUnreadCount] = useState(0);
+  // C5: Poll separate unread counts every 10 seconds; init from localStorage cache to prevent flicker
+  const [apptCount, setApptCount] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    return parseInt(localStorage.getItem("badge_appt") || "0", 10);
+  });
+  const [msgCount, setMsgCount] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    return parseInt(localStorage.getItem("badge_msg") || "0", 10);
+  });
+
   useEffect(() => {
     if (!user) return;
-    const fetchUnread = () =>
-      notificationApi.list(1, true).then(r => setUnreadCount(r.unread)).catch(() => {});
-    fetchUnread();
-    const id = setInterval(fetchUnread, 30_000);
+    const fetchCounts = () => {
+      notificationApi.counts()
+        .then(r => {
+          setApptCount(r.appointments);
+          setMsgCount(r.messages);
+          localStorage.setItem("badge_appt", String(r.appointments));
+          localStorage.setItem("badge_msg", String(r.messages));
+        })
+        .catch(() => {});
+      // Also get actual unread messages count
+      messagesApi.unreadTotal()
+        .then(r => {
+          setMsgCount(prev => {
+            const val = Math.max(prev, r.unread);
+            localStorage.setItem("badge_msg", String(r.unread));
+            return r.unread;
+          });
+        })
+        .catch(() => {});
+    };
+    fetchCounts();
+    const id = setInterval(fetchCounts, 10_000);
     return () => clearInterval(id);
   }, [user]);
 
@@ -83,7 +109,8 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
           <div className="nav-section-label">Main Menu</div>
           {nav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
-            const showBadge = unreadCount > 0 && (item.href.includes("appointments") || item.href.includes("messages"));
+            const showBadge = item.href.includes("appointments") ? apptCount > 0 : item.href.includes("messages") ? msgCount > 0 : false;
+            const badgeCount = item.href.includes("appointments") ? apptCount : msgCount;
             return (
               <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`} onClick={close}>
                 {item.icon && <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0, opacity: active ? 1 : 0.7 }}>{item.icon}</span>}
@@ -100,7 +127,7 @@ export default function Sidebar({ role, userName: nameProp, userEmail: emailProp
                     minWidth: 16,
                     textAlign: "center",
                   }}>
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                    {badgeCount > 9 ? "9+" : badgeCount}
                   </span>
                 )}
               </Link>

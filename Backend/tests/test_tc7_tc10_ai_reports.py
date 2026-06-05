@@ -1,7 +1,7 @@
 """
-TC-7   AI Cavity Detection   (>85% confidence)
-TC-8   AI Plaque Detection   (>80% confidence)
-TC-9   AI Healthy Image      (No Conditions)
+TC-7   AI Caries Detection           (>85% confidence, CNN X-ray model)
+TC-8   AI Periapical Lesion Detection (>80% confidence, CNN X-ray model)
+TC-9   AI Healthy Image               (No Conditions)
 TC-10  PDF Report Generation
 """
 import time
@@ -49,8 +49,8 @@ class TestTC7_CavityDetection:
 
     def test_cavity_detected_with_high_confidence(self, app_client):
         """
-        The conftest fixture mocks YOLO to return a 'Caries' detection at 91%
-        confidence, so this test validates the full pipeline end-to-end.
+        The conftest fixture mocks the CNN X-ray Keras model to return a
+        'Dental Caries' detection at 91% confidence, validating the full pipeline.
         """
         data = register_and_login(
             app_client, f"cavity_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"
@@ -68,91 +68,109 @@ class TestTC7_CavityDetection:
             f"Caries confidence {caries['confidence']:.2f} is below 85% threshold"
         )
 
-    def test_cavity_finding_contains_bounding_box(self, app_client):
+    def test_cavity_finding_bounding_box_is_none(self, app_client):
+        """CNN classifiers have no bounding boxes; bounding_box must be None."""
         data = register_and_login(
             app_client, f"bbox_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"
         )
         analysis = _create_scan_and_wait(app_client, data["access_token"])
-        caries = next((f for f in analysis["findings"] if f["condition"].lower() in ("caries", "cavity")), None)
+        caries = next((f for f in analysis["findings"] if f["condition"].lower() in ("dental caries", "caries", "cavity")), None)
         assert caries is not None
-        assert "bounding_box" in caries and len(caries["bounding_box"]) == 4
+        assert caries["bounding_box"] is None, (
+            "CNN classifier should not produce bounding boxes"
+        )
 
-    def test_cavity_annotated_image_url_present(self, app_client):
+    def test_cavity_annotated_image_url_is_none(self, app_client):
+        """CNN classifier produces no annotated image; annotated_image_url must be None."""
         data = register_and_login(
             app_client, f"annot_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"
         )
         analysis = _create_scan_and_wait(app_client, data["access_token"])
-        assert analysis.get("ai_explanation", {}).get("annotated_image_url") is not None
+        assert analysis.get("ai_explanation", {}).get("annotated_image_url") is None
 
 
-# ── TC-8: AI Plaque (Calculus) Detection ─────────────────────────────────────
-class TestTC8_PlaqueDetection:
-    """TC-8: Verify AI correctly detects plaque/calculus with >80% confidence."""
+# ── TC-8: AI Periapical Lesion Detection ──────────────────────────────────────
+class TestTC8_PeriapicalDetection:
+    """TC-8: Verify AI correctly detects a periapical lesion with >80% confidence."""
 
-    def test_plaque_detected_with_sufficient_confidence(self, app_client):
+    def test_periapical_detected_with_sufficient_confidence(self, app_client):
         """
-        Override the YOLO mock to return a Calculus (plaque) detection at 88%.
+        Override the CNN X-ray mock to return a periapical_lesion detection at 88%.
         """
-        plaque_yolo = {
-            "detections": [
-                {"class": "Calculus", "confidence": 0.88, "bbox": [5, 10, 90, 110]}
+        periapical_keras = {
+            "success": True,
+            "top_class": "periapical_lesion",
+            "top_display": "Periapical Lesion",
+            "top_confidence": 0.88,
+            "all_probabilities": {
+                "caries": 0.07,
+                "impacted_tooth": 0.05,
+                "periapical_lesion": 0.88,
+            },
+            "findings": [
+                {"class": "periapical_lesion", "display": "Periapical Lesion", "confidence": 0.88},
             ],
-            "annotated_image_url": "https://res.cloudinary.com/test/annotated_plaque.jpg",
         }
-        plaque_gemini = {
+        periapical_gemini = {
             "findings_enriched": [
                 {
-                    "severity": "moderate",
-                    "gemini_explanation": "Plaque/calculus buildup detected.",
-                    "recommendation": "Professional cleaning recommended.",
+                    "severity": "high",
+                    "gemini_explanation": "Periapical lesion detected at root apex.",
+                    "recommendation": "Root canal treatment may be required.",
                 }
             ],
-            "patient_summary": "Plaque detected. Cleaning advised.",
-            "clinical_notes": "Calculus present on lower anteriors.",
-            "overall_risk": "moderate",
+            "patient_summary": "A periapical lesion was detected. Consult your dentist promptly.",
+            "clinical_notes": "Periapical radiolucency present.",
+            "overall_risk": "high",
             "urgency": "soon",
             "image_quality": "good",
         }
 
-        with patch("app.services.yolo_service.run_detection", return_value=plaque_yolo), \
+        with patch(
+                "app.services.keras_xray_service.run_keras_xray_classification",
+                return_value=periapical_keras,
+             ), \
              patch(
-                 "app.services.vision_service.DentalVisionService.analyze_with_yolo_context",
-                 return_value=plaque_gemini,
+                 "app.services.vision_service.DentalVisionService.analyze_with_keras_xray_context",
+                 return_value=periapical_gemini,
              ):
             data = register_and_login(
-                app_client, f"plaque_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"
+                app_client, f"periapical_{uuid.uuid4().hex[:8]}@test.com", "Pass99!"
             )
             analysis = _create_scan_and_wait(app_client, data["access_token"])
 
         assert analysis["status"] == "complete", analysis
         findings = analysis["findings"]
-        plaque = next(
-            (f for f in findings if f["condition"].lower() in ("calculus", "plaque", "tartar")),
+        lesion = next(
+            (f for f in findings if "periapical" in f["condition"].lower()),
             None,
         )
-        assert plaque is not None, f"No plaque/calculus finding in: {findings}"
-        assert plaque["confidence"] > 0.80, (
-            f"Plaque confidence {plaque['confidence']:.2f} is below 80% threshold"
+        assert lesion is not None, f"No periapical finding in: {findings}"
+        assert lesion["confidence"] > 0.80, (
+            f"Periapical confidence {lesion['confidence']:.2f} is below 80% threshold"
         )
 
-    def test_plaque_finding_has_recommendation(self, app_client):
-        plaque_yolo = {
-            "detections": [
-                {"class": "Calculus", "confidence": 0.83, "bbox": [5, 10, 90, 110]}
-            ],
-            "annotated_image_url": "https://res.cloudinary.com/test/ann.jpg",
+    def test_periapical_finding_has_recommendation(self, app_client):
+        periapical_keras = {
+            "success": True,
+            "top_class": "periapical_lesion",
+            "top_display": "Periapical Lesion",
+            "top_confidence": 0.83,
+            "all_probabilities": {"caries": 0.10, "impacted_tooth": 0.07, "periapical_lesion": 0.83},
+            "findings": [{"class": "periapical_lesion", "display": "Periapical Lesion", "confidence": 0.83}],
         }
-        plaque_gemini = {
-            "findings_enriched": [{"severity": "moderate", "gemini_explanation": "Plaque.", "recommendation": "Clean teeth."}],
-            "patient_summary": "Plaque.", "clinical_notes": "Calculus.", "overall_risk": "moderate", "urgency": "soon", "image_quality": "good",
+        periapical_gemini = {
+            "findings_enriched": [{"severity": "high", "gemini_explanation": "Root apex lesion.", "recommendation": "See endodontist."}],
+            "patient_summary": "Lesion detected.", "clinical_notes": "Radiolucency at apex.",
+            "overall_risk": "high", "urgency": "soon", "image_quality": "good",
         }
-        with patch("app.services.yolo_service.run_detection", return_value=plaque_yolo), \
-             patch("app.services.vision_service.DentalVisionService.analyze_with_yolo_context", return_value=plaque_gemini):
+        with patch("app.services.keras_xray_service.run_keras_xray_classification", return_value=periapical_keras), \
+             patch("app.services.vision_service.DentalVisionService.analyze_with_keras_xray_context", return_value=periapical_gemini):
             data = register_and_login(app_client, f"prec_{uuid.uuid4().hex[:8]}@test.com", "Pass99!")
             analysis = _create_scan_and_wait(app_client, data["access_token"])
-        plaque = next((f for f in analysis["findings"] if "calculus" in f["condition"].lower()), None)
-        assert plaque is not None
-        assert plaque.get("recommendation"), "Missing recommendation in plaque finding"
+        lesion = next((f for f in analysis["findings"] if "periapical" in f["condition"].lower()), None)
+        assert lesion is not None
+        assert lesion.get("recommendation"), "Missing recommendation in periapical finding"
 
 
 # ── TC-9: AI Healthy Image (No Conditions) ───────────────────────────────────
@@ -160,10 +178,14 @@ class TestTC9_HealthyImage:
     """TC-9: Verify AI correctly identifies healthy teeth with no conditions."""
 
     def test_no_findings_for_healthy_scan(self, app_client):
-        """Mock YOLO to return zero detections → pipeline should return empty findings."""
-        healthy_yolo = {
-            "detections": [],
-            "annotated_image_url": "https://res.cloudinary.com/test/healthy.jpg",
+        """Mock CNN X-ray model to return empty findings → pipeline should return empty findings."""
+        healthy_keras = {
+            "success": True,
+            "top_class": "caries",
+            "top_display": "Dental Caries",
+            "top_confidence": 0.12,
+            "all_probabilities": {"caries": 0.12, "impacted_tooth": 0.08, "periapical_lesion": 0.06},
+            "findings": [],  # empty — all classes below SECONDARY_THRESHOLD
         }
         healthy_gemini = {
             "findings_enriched": [],
@@ -174,9 +196,12 @@ class TestTC9_HealthyImage:
             "image_quality": "good",
         }
 
-        with patch("app.services.yolo_service.run_detection", return_value=healthy_yolo), \
+        with patch(
+                "app.services.keras_xray_service.run_keras_xray_classification",
+                return_value=healthy_keras,
+             ), \
              patch(
-                 "app.services.vision_service.DentalVisionService.analyze_with_yolo_context",
+                 "app.services.vision_service.DentalVisionService.analyze_with_keras_xray_context",
                  return_value=healthy_gemini,
              ):
             data = register_and_login(
@@ -189,13 +214,18 @@ class TestTC9_HealthyImage:
         assert analysis["ai_explanation"]["overall_risk"] == "none"
 
     def test_healthy_scan_confidence_score_is_zero(self, app_client):
-        healthy_yolo = {"detections": [], "annotated_image_url": None}
+        healthy_keras = {
+            "success": True, "top_class": "caries", "top_display": "Dental Caries",
+            "top_confidence": 0.10,
+            "all_probabilities": {"caries": 0.10, "impacted_tooth": 0.05, "periapical_lesion": 0.03},
+            "findings": [],
+        }
         healthy_gemini = {
             "findings_enriched": [], "patient_summary": "Healthy",
             "clinical_notes": "None", "overall_risk": "none", "urgency": "none", "image_quality": "good",
         }
-        with patch("app.services.yolo_service.run_detection", return_value=healthy_yolo), \
-             patch("app.services.vision_service.DentalVisionService.analyze_with_yolo_context", return_value=healthy_gemini):
+        with patch("app.services.keras_xray_service.run_keras_xray_classification", return_value=healthy_keras), \
+             patch("app.services.vision_service.DentalVisionService.analyze_with_keras_xray_context", return_value=healthy_gemini):
             data = register_and_login(app_client, f"hc0_{uuid.uuid4().hex[:8]}@test.com", "Pass99!")
             analysis = _create_scan_and_wait(app_client, data["access_token"])
         assert analysis["confidence_score"] == 0.0

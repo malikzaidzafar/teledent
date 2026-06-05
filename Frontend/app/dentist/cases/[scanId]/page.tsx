@@ -208,7 +208,7 @@ export default function DentistReviewPage() {
                 </SectionCard>
               )}
               {annotatedUrl && (
-                <SectionCard title="AI Detection (YOLOv11)">
+                <SectionCard title="AI Detection (CNN)">
                   <div style={{ padding: 12 }}>
                     <img
                       src={annotatedUrl}
@@ -327,8 +327,12 @@ export default function DentistReviewPage() {
                         try {
                           const url = await reportApi.downloadPdf(report.id);
                           const a = document.createElement("a");
-                          a.href = url; a.download = `report-${report.id}.pdf`; a.click();
-                          setTimeout(() => URL.revokeObjectURL(url), 5000);
+                          a.href = url;
+                          a.download = `teledent-report-${report.id.slice(0, 8)}.pdf`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          setTimeout(() => URL.revokeObjectURL(url), 10000);
                         } catch {}
                       }}
                     >

@@ -12,7 +12,10 @@ import enum
 
 
 class VideoSessionStatus(str, enum.Enum):
+    ringing = "ringing"
     active = "active"
+    declined = "declined"
+    missed = "missed"
     ended = "ended"
 
 

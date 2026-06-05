@@ -79,6 +79,28 @@ def notify_appointment_completed(db: Session, patient_user_id, appointment_id: s
         db, patient_user_id,
         type_="appointment.completed",
         title="Consultation Complete",
-        body="Your consultation is complete. Your report will be available shortly.",
+        body="Your video consultation has been completed. View your updated reports.",
+        data={"appointment_id": appointment_id},
+    )
+
+
+def notify_call_started(db: Session, recipient_user_id, caller_name: str, appointment_id: str, session_id: str):
+    """Video session created → notify the other participant."""
+    _create(
+        db, recipient_user_id,
+        type_="call.started",
+        title="Incoming Video Call",
+        body=f"{caller_name} has started the video consultation.",
+        data={"appointment_id": appointment_id, "session_id": session_id},
+    )
+
+
+def notify_call_missed(db: Session, recipient_user_id, caller_name: str, appointment_id: str):
+    """Call was not answered (timeout or decline) → notify the caller."""
+    _create(
+        db, recipient_user_id,
+        type_="call.missed",
+        title="Missed Call",
+        body=f"You missed a call from {caller_name}.",
         data={"appointment_id": appointment_id},
     )

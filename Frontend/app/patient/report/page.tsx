@@ -98,7 +98,7 @@ function DiagnosisReportPageInner() {
         subtitle={
           report?.dentist_id
             ? "Dentist reviewed · AI + Professional assessment"
-            : "AI-generated · Powered by YOLOv11 + Gemini"
+            : "AI-generated · Powered by CNN + Gemini"
         }
         action={
           report?.pdf_url ? (
@@ -108,8 +108,12 @@ function DiagnosisReportPageInner() {
                 try {
                   const url = await reportApi.downloadPdf(report.id);
                   const a = document.createElement("a");
-                  a.href = url; a.download = `report-${report.id}.pdf`; a.click();
-                  setTimeout(() => URL.revokeObjectURL(url), 5000);
+                  a.href = url;
+                  a.download = `teledent-report-${report.id.slice(0, 8)}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(url), 10000);
                 } catch {}
               }}
             >
@@ -199,7 +203,7 @@ function DiagnosisReportPageInner() {
             )}
             {annotatedUrl && (
               <div style={{ marginBottom: 24 }}>
-                <SectionCard title="AI Detection (YOLOv11)">
+                <SectionCard title="AI Detection (CNN)">
                   <div style={{ padding: 12 }}>
                     <img
                       src={annotatedUrl}
@@ -297,8 +301,12 @@ function DiagnosisReportPageInner() {
                           try {
                             const url = await reportApi.downloadPdf(report.id);
                             const a = document.createElement("a");
-                            a.href = url; a.download = `report-${report.id}.pdf`; a.click();
-                            setTimeout(() => URL.revokeObjectURL(url), 5000);
+                            a.href = url;
+                            a.download = `teledent-report-${report.id.slice(0, 8)}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(url), 10000);
                           } catch {}
                         }}
                       >

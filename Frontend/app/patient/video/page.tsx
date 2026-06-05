@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { videoApi } from "@/lib/api";
-import { useState, useCallback, Suspense } from "react";
+import { useState, useCallback, Suspense, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import VideoRoom, { PreJoinScreen } from "@/components/views/VideoRoom";
 import type { LocalUserChoices } from "@livekit/components-react";
@@ -28,9 +28,19 @@ function PatientVideoPageInner() {
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [callDuration, setCallDuration] = useState(0);
+  const [userChoices, setUserChoices] = useState<LocalUserChoices | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up redirect timer on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   const handlePreJoinSubmit = useCallback(
-    async (_choices: LocalUserChoices) => {
+    async (choices: LocalUserChoices) => {
+      setUserChoices(choices);
       if (!appointmentId) {
         setErrorMsg("No appointment ID in URL. Please join from your Appointments page.");
         setPageState("error");
@@ -69,7 +79,8 @@ function PatientVideoPageInner() {
         );
       }
       setPageState("ended");
-      setTimeout(() => router.push("/patient/appointments"), 8000);
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = setTimeout(() => router.push("/patient/appointments"), 8000);
     },
     [sessionId, router],
   );
@@ -140,13 +151,13 @@ function PatientVideoPageInner() {
             displayName={displayName}
             role="patient"
             sessionId={sessionId}
+            userChoices={userChoices ?? undefined}
             onDisconnected={handleDisconnected}
           />
         )}
 
         {pageState === "ended" && (
           <div style={{ textAlign: "center", padding: 60 }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
             <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Consultation Complete</div>
             <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 4 }}>Duration: {fmt(callDuration)}</div>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28 }}>Redirecting to appointments in a few seconds…</div>

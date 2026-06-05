@@ -1,1 +1,33 @@
 teledent_3class_models.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+test_*.db
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# pip accident files (e.g. =2.16.0)
+=*

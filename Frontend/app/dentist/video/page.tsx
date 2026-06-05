@@ -28,9 +28,11 @@ function DentistVideoPageInner() {
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [callDuration, setCallDuration] = useState(0);
+  const [userChoices, setUserChoices] = useState<LocalUserChoices | null>(null);
 
   const handlePreJoinSubmit = useCallback(
-    async (_choices: LocalUserChoices) => {
+    async (choices: LocalUserChoices) => {
+      setUserChoices(choices);
       if (!appointmentId) {
         setErrorMsg("No appointment ID in URL. Please start from your Appointments page.");
         setPageState("error");
@@ -140,13 +142,13 @@ function DentistVideoPageInner() {
             displayName={displayName}
             role="dentist"
             sessionId={sessionId}
+            userChoices={userChoices ?? undefined}
             onDisconnected={handleDisconnected}
           />
         )}
 
         {pageState === "ended" && (
           <div style={{ textAlign: "center", padding: 60 }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
             <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Consultation Complete</div>
             <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 4 }}>Duration: {fmt(callDuration)}</div>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 28 }}>Redirecting to appointments in a few seconds…</div>

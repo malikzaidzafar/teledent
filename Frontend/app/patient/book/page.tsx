@@ -3,8 +3,8 @@ import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Avatar } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
-import { dentistApi, appointmentApi, type DentistSummary } from "@/lib/api";
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { dentistApi, appointmentApi, reportApi, type DentistSummary, type Report } from "@/lib/api";
+import { useEffect, useState, Suspense, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function BookAppointmentPageInner() {
@@ -23,16 +23,22 @@ function BookAppointmentPageInner() {
   // Date picker state — default to today
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Real slots from backend: dentistId → string[] of ISO slot strings
   const [slotsMap, setSlotsMap] = useState<Record<string, string[]>>({});
   const [slotsLoading, setSlotsLoading] = useState<Record<string, boolean>>({});
+
+  // Report sharing state
+  const [myReports, setMyReports] = useState<Report[]>([]);
+  const [selectedReports, setSelectedReports] = useState<Record<string, string[]>>({}); // dentistId → reportIds
 
   useEffect(() => {
     dentistApi.list({ limit: 20 })
       .then(res => setDentists(res.data))
       .catch(() => setDentists([]))
       .finally(() => setLoading(false));
+    reportApi.list(1).then(res => setMyReports(res.data)).catch(() => {});
   }, []);
 
   const filtered = dentists.filter(d =>
@@ -49,24 +55,36 @@ function BookAppointmentPageInner() {
         return;
       } catch {
         if (attempt === retries) {
-          // H5: Show empty slots with an error indicator instead of silently hiding slots
           setSlotsMap(prev => ({ ...prev, [dentistId]: [] }));
           setSlotsLoading(prev => ({ ...prev, [dentistId]: false }));
         } else {
-          // brief back-off before retry
           await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
         }
       }
     }
   }, []);
 
-  // A8: Only fetch slots for currently filtered (visible) dentists when date changes
+  // Debounce slot fetch on date/filter changes — only fetch visible dentists
   useEffect(() => {
     if (filtered.length === 0) return;
-    setSelectedSlot({});
-    filtered.forEach(d => fetchSlots(d.id, selectedDate));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSelectedSlot({});
+      filtered.forEach(d => fetchSlots(d.id, selectedDate));
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered.length, selectedDate]);
+
+  function toggleReport(dentistId: string, reportId: string) {
+    setSelectedReports(prev => {
+      const current = prev[dentistId] || [];
+      const next = current.includes(reportId)
+        ? current.filter(id => id !== reportId)
+        : [...current, reportId];
+      return { ...prev, [dentistId]: next };
+    });
+  }
 
   async function handleBook(dentist: DentistSummary) {
     const slot = selectedSlot[dentist.id];
@@ -80,6 +98,7 @@ function BookAppointmentPageInner() {
         duration_min: 30,
         type: "Video Consultation",
         scan_id: prefilledScanId,
+        report_ids: selectedReports[dentist.id] || [],
       });
       // Redirect to Stripe checkout for payment
       router.push(`/patient/checkout?appointment_id=${appt.id}`);
@@ -142,6 +161,7 @@ function BookAppointmentPageInner() {
             {filtered.map((d) => {
               const slots = slotsMap[d.id] ?? [];
               const loadingSlots = slotsLoading[d.id] ?? false;
+              const dentistSelectedReports = selectedReports[d.id] || [];
               return (
                 <div key={d.id} className="card">
                   <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 24, alignItems: "start" }}>
@@ -180,6 +200,36 @@ function BookAppointmentPageInner() {
                                 {fmtSlot(slot)}
                               </button>
                             ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Share Reports section */}
+                      {myReports.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            Share Reports with Dentist (optional)
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {myReports.slice(0, 5).map(r => (
+                              <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={dentistSelectedReports.includes(r.id)}
+                                  onChange={() => toggleReport(d.id, r.id)}
+                                  style={{ accentColor: "var(--brand-blue)" }}
+                                />
+                                <span style={{ fontWeight: 500 }}>{r.final_diagnosis}</span>
+                                <span style={{ color: "var(--text-muted)", fontSize: 11 }}>
+                                  {new Date(r.created_at).toLocaleDateString()}
+                                </span>
+                              </label>
+                            ))}
+                            {dentistSelectedReports.length > 0 && (
+                              <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600, marginTop: 2 }}>
+                                ✓ {dentistSelectedReports.length} report{dentistSelectedReports.length > 1 ? "s" : ""} will be shared
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

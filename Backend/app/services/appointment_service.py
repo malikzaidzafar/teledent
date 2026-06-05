@@ -1,13 +1,18 @@
 """services/appointment_service.py — Booking, cancellation, completion."""
 import uuid
+import logging
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.models.patient import Patient
 from app.models.dentist import Dentist
+from app.models.user import User
 from app.core.exceptions import NotFoundException, ConflictException, ForbiddenException, BadRequestException
 from app.core.pagination import paginate
+from app.services import email_service, notification_service
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_patient(db: Session, user_id: str) -> Patient:
@@ -20,18 +25,41 @@ def _resolve_patient(db: Session, user_id: str) -> Patient:
 def _check_slot_available(db: Session, dentist_id: str, scheduled_at: datetime, duration_min: int):
     """A1: Raise ConflictException if the dentist already has an overlapping appointment."""
     end_at = scheduled_at + timedelta(minutes=duration_min)
-    overlap = (
+    candidates = (
         db.query(Appointment)
         .filter(
             Appointment.dentist_id == dentist_id,
             Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed]),
             Appointment.scheduled_at < end_at,
-            (Appointment.scheduled_at + timedelta(minutes=30)) > scheduled_at,
         )
-        .first()
+        .all()
+    )
+    overlap = next(
+        (a for a in candidates if (a.scheduled_at + timedelta(minutes=a.duration_min or 30)) > scheduled_at),
+        None,
     )
     if overlap:
         raise ConflictException("This time slot is already booked. Please choose another time.")
+
+
+def _check_patient_slot(db: Session, patient_id, scheduled_at: datetime, duration_min: int):
+    """Raise ConflictException if the patient already has an overlapping appointment."""
+    end_at = scheduled_at + timedelta(minutes=duration_min)
+    candidates = (
+        db.query(Appointment)
+        .filter(
+            Appointment.patient_id == patient_id,
+            Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed]),
+            Appointment.scheduled_at < end_at,
+        )
+        .all()
+    )
+    overlap = next(
+        (a for a in candidates if (a.scheduled_at + timedelta(minutes=a.duration_min or 30)) > scheduled_at),
+        None,
+    )
+    if overlap:
+        raise ConflictException("You already have an appointment at this time.")
 
 
 def create_appointment(db: Session, user_id: str, data: dict) -> Appointment:
@@ -55,6 +83,7 @@ def create_appointment(db: Session, user_id: str, data: dict) -> Appointment:
         raise BadRequestException(f"Invalid appointment type '{raw_type}'. Must be one of: {', '.join(valid_types)}.")
 
     _check_slot_available(db, data["dentist_id"], scheduled_at, data.get("duration_min", 30))
+    _check_patient_slot(db, patient.id, scheduled_at, data.get("duration_min", 30))
 
     appt = Appointment(
         id=uuid.uuid4(),
@@ -70,6 +99,21 @@ def create_appointment(db: Session, user_id: str, data: dict) -> Appointment:
     db.add(appt)
     db.commit()
     db.refresh(appt)
+
+    # Link shared reports if provided
+    report_ids = data.get("report_ids") or []
+    if report_ids:
+        from app.models.appointment_report import AppointmentReport
+        from app.models.report import Report as ReportModel
+        for rid in report_ids:
+            # Verify the report belongs to this patient
+            rpt = db.query(ReportModel).filter(
+                ReportModel.id == rid,
+                ReportModel.patient_id == patient.id,
+            ).first()
+            if rpt:
+                db.add(AppointmentReport(appointment_id=appt.id, report_id=rpt.id))
+        db.commit()
 
     # A4: Send booking emails and create DB notifications
     try:

@@ -164,20 +164,23 @@ def list_reports(db: Session, user_id: str, role: str, page: int, limit: int, sc
     elif role == "dentist":
         from app.models.dentist import Dentist
         from app.models.appointment import Appointment, AppointmentStatus
+        from app.models.appointment_report import AppointmentReport
         dentist = db.query(Dentist).filter(Dentist.user_id == user_id).first()
         if dentist:
-            # Dentist only sees reports for patients with an ACTIVE appointment (not cancelled)
-            active_statuses = [AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]
-            linked_patient_ids = [
-                a.patient_id for a in
-                db.query(Appointment).filter(
+            # Dentist sees: (a) reports they authored, OR (b) reports explicitly shared via appointment_reports
+            shared_report_ids = [
+                str(ar.report_id) for ar in
+                db.query(AppointmentReport)
+                .join(Appointment, AppointmentReport.appointment_id == Appointment.id)
+                .filter(
                     Appointment.dentist_id == dentist.id,
-                    Appointment.status.in_(active_statuses),
-                ).all()
+                    Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]),
+                )
+                .all()
             ]
             q = q.filter(
                 (Report.dentist_id == dentist.id) |
-                (Report.patient_id.in_(linked_patient_ids))
+                (Report.id.in_(shared_report_ids))
             )
         else:
             return {"data": [], "total": 0, "page": page, "limit": limit, "pages": 0}
@@ -196,16 +199,18 @@ def get_report(db: Session, report_id: str, current_user) -> Report:
     elif current_user.role == "dentist":
         from app.models.dentist import Dentist
         from app.models.appointment import Appointment, AppointmentStatus
+        from app.models.appointment_report import AppointmentReport
         dentist = db.query(Dentist).filter(Dentist.user_id == current_user.id).first()
         if dentist:
             is_author = report.dentist_id and str(report.dentist_id) == str(dentist.id)
-            active_statuses = [AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]
-            has_link = db.query(Appointment).filter(
+            is_shared = db.query(AppointmentReport).join(
+                Appointment, AppointmentReport.appointment_id == Appointment.id
+            ).filter(
+                AppointmentReport.report_id == report.id,
                 Appointment.dentist_id == dentist.id,
-                Appointment.patient_id == report.patient_id,
-                Appointment.status.in_(active_statuses),
+                Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed, AppointmentStatus.completed]),
             ).first()
-            if not is_author and not has_link:
+            if not is_author and not is_shared:
                 raise ForbiddenException()
     return report
 

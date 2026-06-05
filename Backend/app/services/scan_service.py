@@ -81,8 +81,13 @@ def _get_vision_service():
 
 def _run_ai_pipeline(db: Session, scan: Scan):
     """
-    Full pipeline: YOLO detection → Gemini enrichment → Analysis save
+    Full pipeline: AI detection → Gemini enrichment → Analysis save
                    → Auto-report → PDF → Notifications.
+
+    Oral / intraoral photos  → VGG16 Keras classifier (4-class: cavity / gingivitis /
+                                                       discoloration / ulcer)
+    X-ray scans              → CNN Keras classifier   (3-class: caries /
+                                                       impacted_tooth / periapical_lesion)
     """
     import httpx
     from datetime import datetime, timezone
@@ -101,52 +106,97 @@ def _run_ai_pipeline(db: Session, scan: Scan):
         from app.services.image_preprocessing_service import preprocess_image
         image_bytes = preprocess_image(image_bytes)
 
-        # ── 3. YOLO detection ─────────────────────────────────────────────
-        from app.services.yolo_service import run_detection
+        # ── 3. Route to the correct AI model ─────────────────────────────
+        from app.services.keras_xray_service import XRAY_SCAN_TYPES
         scan_type_str = scan.scan_type.value if hasattr(scan.scan_type, "value") else str(scan.scan_type)
-        yolo_result = run_detection(image_bytes, scan_type=scan_type_str)
-
-        # ── 4. Gemini enrichment ──────────────────────────────────────────
+        is_xray = scan_type_str.lower() in XRAY_SCAN_TYPES
         vision = _get_vision_service()
-        gemini_result = vision.analyze_with_yolo_context(image_bytes, yolo_result)
 
-        # ── 5. Build unified findings list ────────────────────────────────
-        findings: list[dict] = []
-        detections = yolo_result.get("detections", [])
-        enriched = gemini_result.get("findings_enriched", [])
+        if is_xray:
+            # ── 3a. X-ray: CNN Keras classification (3-class) ─────────────
+            from app.services.keras_xray_service import run_keras_xray_classification
+            keras_xray_result = run_keras_xray_classification(image_bytes)
 
-        for i, det in enumerate(detections):
-            gem = enriched[i] if i < len(enriched) else {}
-            severity = gem.get("severity") or (
-                "high" if det["confidence"] > 0.7
-                else "moderate" if det["confidence"] > 0.4
-                else "low"
-            )
-            findings.append({
-                "condition": det["class"],
-                "confidence": det["confidence"],
-                "severity": severity,
-                "bounding_box": det["bbox"],
-                "gemini_explanation": gem.get("gemini_explanation", ""),
-                "recommendation": gem.get("recommendation", f"Consult dentist about {det['class']}."),
-            })
+            # ── 4a. Gemini enrichment (CNN X-ray context) ─────────────────
+            gemini_result = vision.analyze_with_keras_xray_context(image_bytes, keras_xray_result)
 
-        # ── 6. ai_explanation payload (Gemini patient-facing text) ────────
-        ai_explanation = {
-            "patient_summary": gemini_result.get("patient_summary", ""),
-            "clinical_notes": gemini_result.get("clinical_notes", ""),
-            "overall_risk": gemini_result.get("overall_risk", "none"),
-            "urgency": gemini_result.get("urgency", "monitor"),
-            "image_quality": gemini_result.get("image_quality", "unknown"),
-            "annotated_image_url": yolo_result.get("annotated_image_url"),
-        }
+            # ── 5a. Build findings from CNN detections ─────────────────────
+            findings: list[dict] = []
+            xray_findings = keras_xray_result.get("findings", [])
+            enriched = gemini_result.get("findings_enriched", [])
+            for i, finding in enumerate(xray_findings):
+                gem = enriched[i] if i < len(enriched) else {}
+                severity = gem.get("severity") or (
+                    "high"     if finding["confidence"] > 0.7
+                    else "moderate" if finding["confidence"] > 0.4
+                    else "low"
+                )
+                findings.append({
+                    "condition":         finding["display"],
+                    "confidence":        finding["confidence"],
+                    "severity":          severity,
+                    "bounding_box":      None,  # CNN classifier — no bounding boxes
+                    "gemini_explanation": gem.get("gemini_explanation", ""),
+                    "recommendation":    gem.get("recommendation", f"Consult dentist about {finding['display']}."),
+                })
+
+            ai_explanation = {
+                "patient_summary":     gemini_result.get("patient_summary", ""),
+                "clinical_notes":      gemini_result.get("clinical_notes", ""),
+                "overall_risk":        gemini_result.get("overall_risk", "none"),
+                "urgency":             gemini_result.get("urgency", "monitor"),
+                "image_quality":       gemini_result.get("image_quality", "unknown"),
+                "annotated_image_url": None,  # no annotated image from CNN
+                "all_probabilities":   keras_xray_result.get("all_probabilities", {}),
+            }
+            annotated_url = None
+            model_version = "cnn-xray-3class-gemini-v1"
+
+        else:
+            # ── 3b. Oral photo: VGG16 Keras classification ────────────────
+            from app.services.keras_oral_service import run_keras_classification
+            keras_result = run_keras_classification(image_bytes)
+
+            # ── 4b. Gemini enrichment (VGG16 context) ─────────────────────
+            gemini_result = vision.analyze_with_keras_context(image_bytes, keras_result)
+
+            # ── 5b. Build single finding from classification result ────────
+            findings: list[dict] = []
+            top_class = keras_result.get("top_display", "Cavity")
+            top_conf  = keras_result.get("top_confidence", 0.0)
+            if keras_result.get("success") and top_conf > 0.0:
+                enriched_list = gemini_result.get("findings_enriched", [])
+                gem = enriched_list[0] if enriched_list else {}
+                severity = gem.get("severity") or (
+                    "high" if top_conf > 0.7
+                    else "moderate" if top_conf > 0.4
+                    else "low"
+                )
+                findings = [{
+                    "condition": top_class,
+                    "confidence": top_conf,
+                    "severity": severity,
+                    "bounding_box": None,
+                    "gemini_explanation": gem.get("gemini_explanation", ""),
+                    "recommendation": gem.get("recommendation", f"Consult dentist about {top_class}."),
+                }]
+
+            ai_explanation = {
+                "patient_summary": gemini_result.get("patient_summary", ""),
+                "clinical_notes": gemini_result.get("clinical_notes", ""),
+                "overall_risk": gemini_result.get("overall_risk", "none"),
+                "urgency": gemini_result.get("urgency", "monitor"),
+                "image_quality": gemini_result.get("image_quality", "unknown"),
+                "annotated_image_url": None,
+                "all_probabilities": keras_result.get("all_probabilities", {}),
+            }
+            annotated_url = None
+            model_version = "vgg16-keras-gemini-v1"
 
         top_condition = findings[0]["condition"] if findings else "No findings"
         top_confidence = findings[0]["confidence"] if findings else 0.0
 
         # ── 7. Save Analysis ──────────────────────────────────────────────
-        model_used = yolo_result.get("model_used", "teeth-image")
-        model_version = f"yolo-xray-gemini-v1" if model_used == "xray" else "yolov8-gemini-v1"
         analysis = Analysis(
             id=uuid.uuid4(),
             scan_id=scan.id,
@@ -159,23 +209,30 @@ def _run_ai_pipeline(db: Session, scan: Scan):
         )
         db.add(analysis)
 
-        # ── 8. Update scan cache ──────────────────────────────────────────
-        scan.status = ScanStatus.complete
+        # ── 8. Persist analysis + ai_result cache.
+        #       Keep scan.status as "processing" until the PDF is ready so the
+        #       frontend doesn't navigate to the report page before pdf_url exists.
         scan.ai_result = {
             "confidence": top_confidence,
             "findings_count": len(findings),
             "top_condition": top_condition,
             "overall_risk": gemini_result.get("overall_risk", "none"),
-            "annotated_image_url": yolo_result.get("annotated_image_url"),
+            "annotated_image_url": annotated_url,
         }
         db.commit()
         db.refresh(analysis)
 
-        # ── 9. Auto-generate report ───────────────────────────────────────
+        # ── 9. Auto-generate report + PDF ────────────────────────────────
         from app.services import report_service
         report = report_service.create_auto_report(db, scan, analysis)
 
-        # ── 10. Notifications ─────────────────────────────────────────────
+        # ── 10. Mark scan complete ONLY after pdf_url is committed ────────
+        #        The frontend polls this status; by the time it sees "complete"
+        #        the report already has pdf_url set in the DB.
+        scan.status = ScanStatus.complete
+        db.commit()
+
+        # ── 11. Notifications ─────────────────────────────────────────────
         _send_analysis_notifications(db, scan, report)
 
     except Exception as e:

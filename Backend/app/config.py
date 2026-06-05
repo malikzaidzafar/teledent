@@ -19,9 +19,6 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # Redis (for refresh token blacklist)
-    REDIS_URL: str = "redis://localhost:6379/0"
-
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""
     CLOUDINARY_API_KEY: str = ""
@@ -39,9 +36,8 @@ class Settings(BaseSettings):
 
     # AI
     GEMINI_API_KEY: str = ""
-    YOLO_MODEL_PATH: str = ""       # Override path to teeth-image best.pt; auto-resolved if empty
-    XRAY_YOLO_MODEL_PATH: str = ""  # Override path to xray_best.pt; auto-resolved if empty
-
+    KERAS_ORAL_MODEL_PATH: str = ""  # Override path to vgg16_final_best.keras; auto-resolved if empty
+    KERAS_XRAY_MODEL_PATH: str = ""  # Override path to best_xray_3class.keras; auto-resolved if empty
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""  # e.g. 1234567890-abc.apps.googleusercontent.com
 
