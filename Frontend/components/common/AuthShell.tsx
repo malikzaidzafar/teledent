@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 interface AuthShellProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export default function AuthShell({ children, panelHeading, panelBody, panelPoin
       <div className="auth-left">
         <div className="auth-form-box" style={{ width: "100%" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", marginBottom: 40 }}>
-            <div style={{ width: 32, height: 32, background: "var(--brand-blue)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}></div>
+            <Image src="/logo.png" alt="TeledentAI" width={32} height={32} style={{ borderRadius: 8, flexShrink: 0 }} />
             <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em" }}>
               Teledent<span style={{ color: "var(--brand-blue)" }}>AI</span>
             </span>
