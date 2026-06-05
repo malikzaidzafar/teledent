@@ -40,14 +40,11 @@ function DentistVideoPageInner() {
       }
       setPageState("connecting");
       try {
-        let sid: string;
-        try {
-          const existing = await videoApi.getSessionByAppointment(appointmentId);
-          sid = existing.session_id;
-        } catch {
-          const created = await videoApi.createSession(appointmentId);
-          sid = created.session_id;
-        }
+        // Always call createSession — backend returns existing active session if one exists
+        // and always sends the incoming_call WS notification to the patient.
+        // (Using getSessionByAppointment first would skip the notification on retries.)
+        const created = await videoApi.createSession(appointmentId);
+        const sid = created.session_id;
         setSessionId(sid);
         const tokenData = await videoApi.getToken(sid);
         setToken(tokenData.token);
