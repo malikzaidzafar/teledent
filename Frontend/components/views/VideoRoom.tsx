@@ -556,8 +556,8 @@ export function PreJoinScreen({ displayName, onJoin, onError }: PreJoinScreenPro
       username: name.trim() || displayName,
       videoEnabled,
       audioEnabled,
-      videoDeviceId: videoDeviceIdRef.current,
-      audioDeviceId: audioDeviceIdRef.current,
+      videoDeviceId: videoDeviceIdRef.current ?? "",
+      audioDeviceId: audioDeviceIdRef.current ?? "",
     });
   }
 
