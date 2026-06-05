@@ -4,7 +4,7 @@ import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Badge, Avatar, SectionCard } from "@/components/ui/shared";
 import { useRequireAuth } from "@/lib/auth";
 import { useAppointments } from "@/lib/hooks/useAppointments";
-import { appointmentApi, messagesApi } from "@/lib/api";
+import { appointmentApi, messagesApi, type SharedReport } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 type Tab = "pending" | "confirmed" | "completed" | "all";
@@ -35,6 +35,8 @@ export default function DentistAppointmentsPage() {
   const [completing, setCompleting] = useState<string | null>(null);
   const [messaging, setMessaging] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [viewingReports, setViewingReports] = useState<string | null>(null);
+  const [reportsByAppt, setReportsByAppt] = useState<Record<string, SharedReport[]>>({});
   const [rejectModal, setRejectModal] = useState<{ id: string; patientName: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -112,6 +114,19 @@ export default function DentistAppointmentsPage() {
     }
   }
 
+  async function toggleReports(apptId: string) {
+    if (viewingReports === apptId) { setViewingReports(null); return; }
+    setViewingReports(apptId);
+    if (!reportsByAppt[apptId]) {
+      try {
+        const reports = await appointmentApi.getSharedReports(apptId);
+        setReportsByAppt(prev => ({ ...prev, [apptId]: reports }));
+      } catch {
+        setReportsByAppt(prev => ({ ...prev, [apptId]: [] }));
+      }
+    }
+  }
+
   return (
     <AppLayout role="dentist" pageTitle="Appointments">
       <PageHeader
@@ -185,118 +200,117 @@ export default function DentistAppointmentsPage() {
             {displayed.map((a) => {
               const isPending   = a.status === "pending";
               const isConfirmed = a.status === "confirmed";
-              // WP6B: Use resolved patient_name instead of raw patient_id
               const patientDisplayName = a.patient_name || `Patient #${a.patient_id.slice(0, 8).toUpperCase()}`;
+              const hasReports = (a.shared_reports_count ?? 0) > 0;
 
               return (
-                <div
-                  key={a.id}
-                  style={{
-                    background: "var(--surface)",
-                    border: isPending
-                      ? "1px solid #fcd34d"
-                      : isConfirmed
-                        ? "1px solid #86efac"
-                        : "1px solid var(--border)",
-                    borderRadius: "var(--radius-xl)",
-                    padding: "18px 22px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 18,
-                    flexWrap: "wrap",
-                    boxShadow: isPending ? "0 2px 12px rgba(251,191,36,0.12)" : "var(--shadow-sm)",
-                    transition: "box-shadow 0.2s",
-                  }}
-                >
-                  {/* Status indicator stripe */}
-                  <div style={{
-                    width: 4, height: 52, borderRadius: 2, flexShrink: 0,
-                    background: isPending ? "#f59e0b" : isConfirmed ? "#16a34a" : a.status === "completed" ? "var(--brand-blue)" : "#94a3b8",
-                  }} />
+                <div key={a.id}>
+                  <div
+                    style={{
+                      background: "var(--surface)",
+                      border: isPending
+                        ? "1px solid #fcd34d"
+                        : isConfirmed
+                          ? "1px solid #86efac"
+                          : "1px solid var(--border)",
+                      borderRadius: viewingReports === a.id ? "var(--radius-xl) var(--radius-xl) 0 0" : "var(--radius-xl)",
+                      padding: "18px 22px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 18,
+                      flexWrap: "wrap",
+                      boxShadow: isPending ? "0 2px 12px rgba(251,191,36,0.12)" : "var(--shadow-sm)",
+                      transition: "box-shadow 0.2s",
+                    }}
+                  >
+                    {/* Status indicator stripe */}
+                    <div style={{
+                      width: 4, height: 52, borderRadius: 2, flexShrink: 0,
+                      background: isPending ? "#f59e0b" : isConfirmed ? "#16a34a" : a.status === "completed" ? "var(--brand-blue)" : "#94a3b8",
+                    }} />
 
-                  {/* Avatar + patient info */}
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 180 }}>
-                    <Avatar name={patientDisplayName} size={42} />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
-                        {patientDisplayName}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                        {a.type.replace(/_/g, " ")}
+                    {/* Avatar + patient info */}
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 180 }}>
+                      <Avatar name={patientDisplayName} size={42} />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{patientDisplayName}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{a.type.replace(/_/g, " ")}</div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Date / Time */}
-                  <div style={{ minWidth: 140 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                      {fmtDate(a.scheduled_at)}
+                    {/* Date / Time */}
+                    <div style={{ minWidth: 140 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{fmtDate(a.scheduled_at)}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{fmtTime(a.scheduled_at)} · {a.duration_min} min</div>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                      {fmtTime(a.scheduled_at)} · {a.duration_min} min
-                    </div>
-                  </div>
 
-                  {/* Badge */}
-                  <Badge variant={STATUS_VARIANT[a.status] ?? "blue"}>
-                    {a.status}
-                  </Badge>
+                    {/* Badge */}
+                    <Badge variant={STATUS_VARIANT[a.status] ?? "blue"}>{a.status}</Badge>
 
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-                    {isPending && (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleConfirm(a.id)}
-                        disabled={confirming === a.id}
-                        style={{ minWidth: 90 }}
-                      >
-                        {confirming === a.id ? "Confirming…" : "Confirm"}
-                      </button>
-                    )}
-
-                    {isPending && (
-                      <button
-                        className="btn btn-sm"
-                        style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontWeight: 700 }}
-                        onClick={() => { setRejectModal({ id: a.id, patientName: patientDisplayName }); setRejectReason(""); }}
-                      >
-                        Reject
-                      </button>
-                    )}
-
-                    {isConfirmed && (
-                      <button
-                        className="btn btn-sm"
-                        style={{ background: "#dcfce7", color: "#15803d", border: "none", fontWeight: 700 }}
-                        onClick={() => handleComplete(a.id)}
-                        disabled={completing === a.id}
-                      >
-                        {completing === a.id ? "Saving…" : "Mark Complete"}
-                      </button>
-                    )}
-
-                    {isConfirmed && (
-                      <a
-                        href={`/dentist/video?appointment_id=${a.id}`}
-                        className="btn btn-primary btn-sm"
-                      >
-                        Start Call
-                      </a>
-                    )}
-
-                    {/* WP3D: Message patient using patient_user_id */}
-                    {(isPending || isConfirmed || a.status === "completed") && (
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+                      {isPending && (
+                        <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(a.id)} disabled={confirming === a.id} style={{ minWidth: 90 }}>
+                          {confirming === a.id ? "Confirming…" : "Confirm"}
+                        </button>
+                      )}
+                      {isPending && (
+                        <button className="btn btn-sm" style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontWeight: 700 }} onClick={() => { setRejectModal({ id: a.id, patientName: patientDisplayName }); setRejectReason(""); }}>
+                          Reject
+                        </button>
+                      )}
+                      {isConfirmed && (
+                        <button className="btn btn-sm" style={{ background: "#dcfce7", color: "#15803d", border: "none", fontWeight: 700 }} onClick={() => handleComplete(a.id)} disabled={completing === a.id}>
+                          {completing === a.id ? "Saving…" : "Mark Complete"}
+                        </button>
+                      )}
+                      {isConfirmed && (
+                        <a href={`/dentist/video?appointment_id=${a.id}`} className="btn btn-primary btn-sm">Start Call</a>
+                      )}
+                      {(isPending || isConfirmed || a.status === "completed") && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleMessage(a.patient_user_id, a.id)} disabled={messaging === a.id} title="Message this patient">
+                          {messaging === a.id ? "…" : "Message"}
+                        </button>
+                      )}
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => handleMessage(a.patient_user_id, a.id)}
-                        disabled={messaging === a.id}
-                        title="Message this patient"
+                        onClick={() => toggleReports(a.id)}
+                        title="View reports shared by patient"
+                        style={{ color: hasReports ? "var(--brand-blue)" : "var(--text-muted)", fontWeight: hasReports ? 700 : 400 }}
                       >
-                        {messaging === a.id ? "…" : "Message"}
+                        {viewingReports === a.id ? "Hide Reports" : `📊 Reports${hasReports ? ` (${a.shared_reports_count})` : ""}`}
                       </button>
-                    )}
+                    </div>
                   </div>
+
+                  {/* Shared Reports Panel */}
+                  {viewingReports === a.id && (
+                    <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 var(--radius-xl) var(--radius-xl)", padding: "16px 22px" }}>
+                      {!reportsByAppt[a.id] ? (
+                        <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</div>
+                      ) : reportsByAppt[a.id].length === 0 ? (
+                        <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No reports shared for this appointment.</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Patient-Shared Reports</div>
+                          {reportsByAppt[a.id].map((r) => (
+                            <div key={r.report_id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{r.final_diagnosis || "AI Analysis Report"}</div>
+                                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                                  Shared {r.shared_at ? new Date(r.shared_at).toLocaleDateString() : "—"}
+                                  {r.is_auto_generated ? " · AI Generated" : " · Dentist Review"}
+                                </div>
+                              </div>
+                              {r.pdf_url && (
+                                <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>View PDF</a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

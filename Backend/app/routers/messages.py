@@ -4,6 +4,7 @@ routers/messages.py — Conversation and Message endpoints.
 import uuid
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
@@ -19,12 +20,20 @@ router = APIRouter(prefix="/messages", tags=["Messages"])
 # Schemas
 # ---------------------------------------------------------------------------
 
+class LastMessageOut(BaseModel):
+    text: str
+    sent_at: str
+    sender_id: str
+
+
 class ConversationOut(BaseModel):
     id: str
     patient_id: str
     dentist_id: str
     created_at: str
     other_user_name: Optional[str] = None
+    last_message: Optional[LastMessageOut] = None
+    unread_count: int = 0
 
     class Config:
         from_attributes = True
@@ -72,24 +81,73 @@ def _assert_participant(conv: Conversation, user: User):
 
 @router.get("", response_model=list[ConversationOut])
 def list_conversations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return all conversations for the authenticated user."""
+    """Return all conversations with last_message + unread_count — all data in 3 batch queries, no N+1."""
     convs = db.query(Conversation).filter(
         (Conversation.patient_id == current_user.id) |
         (Conversation.dentist_id == current_user.id)
     ).order_by(Conversation.created_at.desc()).all()
 
+    if not convs:
+        return []
+
+    conv_ids = [c.id for c in convs]
+
+    # ── Batch 1: last message per conversation ────────────────────────────
+    last_sent_subq = (
+        db.query(Message.conversation_id, func.max(Message.sent_at).label("max_sent_at"))
+        .filter(Message.conversation_id.in_(conv_ids))
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    last_msgs = (
+        db.query(Message)
+        .join(last_sent_subq, and_(
+            Message.conversation_id == last_sent_subq.c.conversation_id,
+            Message.sent_at == last_sent_subq.c.max_sent_at,
+        ))
+        .all()
+    )
+    last_msg_map: dict = {str(m.conversation_id): m for m in last_msgs}
+
+    # ── Batch 2: unread count per conversation ────────────────────────────
+    unread_rows = (
+        db.query(Message.conversation_id, func.count(Message.id).label("cnt"))
+        .filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.sender_id != current_user.id,
+            Message.is_read == False,  # noqa: E712
+        )
+        .group_by(Message.conversation_id)
+        .all()
+    )
+    unread_map: dict = {str(r.conversation_id): r.cnt for r in unread_rows}
+
+    # ── Batch 3: load other-side users ────────────────────────────────────
+    other_user_ids = [
+        c.dentist_id if current_user.role == "patient" else c.patient_id
+        for c in convs
+    ]
+    users = db.query(User).filter(User.id.in_(other_user_ids)).all()
+    user_map: dict = {str(u.id): u for u in users}
+
     out = []
     for c in convs:
-        other_user_id = c.dentist_id if current_user.role == "patient" else c.patient_id
-        other_user = db.query(User).filter(User.id == other_user_id).first()
+        other_uid = c.dentist_id if current_user.role == "patient" else c.patient_id
+        other_user = user_map.get(str(other_uid))
         other_name = f"{other_user.first_name} {other_user.last_name}" if other_user else "Unknown"
-
+        lm = last_msg_map.get(str(c.id))
         out.append(ConversationOut(
             id=str(c.id),
             patient_id=str(c.patient_id),
             dentist_id=str(c.dentist_id),
             created_at=c.created_at.isoformat(),
-            other_user_name=other_name
+            other_user_name=other_name,
+            last_message=LastMessageOut(
+                text=lm.text,
+                sent_at=lm.sent_at.isoformat(),
+                sender_id=str(lm.sender_id),
+            ) if lm else None,
+            unread_count=unread_map.get(str(c.id), 0),
         ))
     return out
 
@@ -158,24 +216,18 @@ def unread_total(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return the total unread message count across all conversations."""
-    # Get all conversations the user participates in
-    convs = db.query(Conversation).filter(
-        (Conversation.patient_id == current_user.id) |
-        (Conversation.dentist_id == current_user.id)
-    ).all()
-    total = 0
-    for conv in convs:
-        total += (
-            db.query(Message)
-            .filter(
-                Message.conversation_id == conv.id,
-                Message.sender_id != current_user.id,
-                Message.is_read == False,
-            )
-            .count()
+    """Return total unread message count across all conversations (single join query)."""
+    count = (
+        db.query(func.count(Message.id))
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(
+            (Conversation.patient_id == current_user.id) | (Conversation.dentist_id == current_user.id),
+            Message.sender_id != current_user.id,
+            Message.is_read == False,  # noqa: E712
         )
-    return {"unread": total}
+        .scalar()
+    )
+    return {"unread": count or 0}
 
 
 @router.get("/{conversation_id}", response_model=ConversationOut)

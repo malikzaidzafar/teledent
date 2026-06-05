@@ -177,6 +177,7 @@ export const appointmentApi = {
   listSharedReports: (id: string) => request<SharedReport[]>("GET", `/appointments/${id}/reports`),
   shareReports: (id: string, report_ids: string[]) => request<{ added: string[] }>("POST", `/appointments/${id}/reports`, { report_ids }),
   unshareReport: (id: string, report_id: string) => request<void>("DELETE", `/appointments/${id}/reports/${report_id}`),
+  getSharedReports: (id: string) => request<SharedReport[]>("GET", `/appointments/${id}/reports`),
 };
 
 export const videoApi = {
@@ -389,6 +390,8 @@ export interface Appointment {
   dentist_name?: string;
   /** Resolved display name e.g. "John Doe" */
   patient_name?: string;
+  /** Number of AI reports the patient shared for this appointment */
+  shared_reports_count?: number;
   scan_id?: string;
   scheduled_at: string;
   duration_min: number;
@@ -515,6 +518,8 @@ export interface ConversationOut {
   dentist_id: string;
   created_at: string;
   other_user_name?: string;
+  last_message?: { text: string; sent_at: string; sender_id: string } | null;
+  unread_count?: number;
 }
 
 export interface MessageOut {
@@ -524,6 +529,15 @@ export interface MessageOut {
   text: string;
   is_read: boolean;
   sent_at: string;
+}
+
+export interface SharedReport {
+  report_id: string;
+  final_diagnosis: string | null;
+  created_at: string | null;
+  pdf_url: string | null;
+  is_auto_generated: boolean;
+  shared_at: string | null;
 }
 
 // ---------------------------------------------------------------------------

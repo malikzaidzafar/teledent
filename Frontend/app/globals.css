@@ -277,8 +277,16 @@ a { color: inherit; }
 .animate-fade-in-up { animation: fadeInUp 0.45s ease forwards; }
 .animate-fade-in    { animation: fadeIn 0.35s ease forwards; }
 
-/* Hide Stripe test mode badge */
-#stripe-dev-tools, .stripe-test-badge, #stripe-dev-tools-wrapper, .__PrivateStripeElement-test-mode-badge, iframe[src*="stripe.com"][src*="test_mode"] {
+/* Hide Stripe test mode badge — all known selectors */
+#stripe-dev-tools,
+#stripe-dev-tools-wrapper,
+#stripe-badge-iframe,
+.stripe-test-badge,
+.__PrivateStripeElement-test-mode-badge,
+[data-testid="stripe-test-mode-badge"],
+iframe[src*="js.stripe.com"][title*="test"],
+iframe[src*="js.stripe.com"][name*="__privateStripeFrame"],
+body > iframe[src*="stripe.com"] {
   display: none !important;
 }
 

@@ -44,6 +44,13 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(() => {
     const token = tokenStore.getAccess();
     if (!token || unmountedRef.current) return;
+    // Don't open a new connection if one is already connecting or open
+    if (wsRef.current && wsRef.current.readyState < WebSocket.CLOSING) return;
+    // Skip if token is already expired — the retry interval will try again once auth refreshes it
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) return;
+    } catch { /* malformed token — let server reject it */ }
 
     try {
       const ws = new WebSocket(`${WS_BASE}/ws/notifications?token=${encodeURIComponent(token)}`);
@@ -80,12 +87,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     unmountedRef.current = false;
-    // Only connect if user is logged in
+    // Connect immediately if token is available, else the interval below will catch it
     const token = tokenStore.getAccess();
     if (token) connect();
 
+    // Retry every 4s — handles token not yet in store on first render (e.g. slow auth hydration)
+    const retryInterval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState >= WebSocket.CLOSING) {
+        connect();
+      }
+    }, 4000);
+
     return () => {
       unmountedRef.current = true;
+      clearInterval(retryInterval);
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
       wsRef.current?.close();
     };

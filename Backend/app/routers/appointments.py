@@ -4,6 +4,7 @@ routers/appointments.py — Appointment booking and management.
 import uuid as _uuid
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -83,10 +84,102 @@ def _enrich_appointment(appt, db: Session) -> dict:
         d["patient_user_id"] = None
         d["patient_name"] = "Patient"
 
+    # Shared reports count — dentist can see if patient attached reports to this appointment
+    try:
+        from app.models.appointment_report import AppointmentReport
+        appt_id_val = d.get("id")
+        if appt_id_val:
+            d["shared_reports_count"] = db.query(AppointmentReport).filter(
+                AppointmentReport.appointment_id == appt_id_val
+            ).count()
+        else:
+            d["shared_reports_count"] = 0
+    except Exception:
+        d["shared_reports_count"] = 0
+
     return d
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("patient"))])
+def _bulk_enrich_appointments(appts: list, db: Session) -> list:
+    """Enrich a list of appointment rows using 5 batch queries instead of N*5 queries."""
+    if not appts:
+        return []
+
+    from app.models.appointment_report import AppointmentReport
+
+    # Serialize base fields
+    rows: list[dict] = []
+    dentist_ids: set = set()
+    patient_ids: set = set()
+    for appt in appts:
+        d: dict = {}
+        if isinstance(appt, dict):
+            d = appt.copy()
+        else:
+            for col in appt.__table__.columns:
+                val = getattr(appt, col.name)
+                if isinstance(val, _uuid.UUID):
+                    val = str(val)
+                elif hasattr(val, "isoformat"):
+                    val = val.isoformat()
+                elif hasattr(val, "value"):
+                    val = val.value
+                d[col.name] = val
+        dentist_ids.add(str(d.get("dentist_id") or ""))
+        patient_ids.add(str(d.get("patient_id") or ""))
+        rows.append(d)
+
+    dentist_ids.discard("")
+    patient_ids.discard("")
+
+    # Batch load dentists + their users
+    dentists = db.query(DentistModel).filter(DentistModel.id.in_(dentist_ids)).all()
+    dentist_map = {str(dt.id): dt for dt in dentists}
+    dentist_user_ids = {str(dt.user_id) for dt in dentists if dt.user_id}
+
+    # Batch load patients + their users
+    patients = db.query(Patient).filter(Patient.id.in_(patient_ids)).all()
+    patient_map = {str(p.id): p for p in patients}
+    patient_user_ids = {str(p.user_id) for p in patients if p.user_id}
+
+    # Single user batch load
+    all_user_ids = dentist_user_ids | patient_user_ids
+    users = db.query(User).filter(User.id.in_(all_user_ids)).all()
+    user_map = {str(u.id): u for u in users}
+
+    # Batch shared report counts
+    appt_ids = [r["id"] for r in rows if r.get("id")]
+    count_rows = (
+        db.query(AppointmentReport.appointment_id, func.count(AppointmentReport.id).label("cnt"))
+        .filter(AppointmentReport.appointment_id.in_(appt_ids))
+        .group_by(AppointmentReport.appointment_id)
+        .all()
+    )
+    count_map = {str(row.appointment_id): row.cnt for row in count_rows}
+
+    result = []
+    for d in rows:
+        dentist = dentist_map.get(str(d.get("dentist_id") or ""))
+        if dentist:
+            du = user_map.get(str(dentist.user_id))
+            d["dentist_user_id"] = str(dentist.user_id)
+            d["dentist_name"] = f"Dr. {du.first_name} {du.last_name}" if du else "Dentist"
+        else:
+            d["dentist_user_id"] = None
+            d["dentist_name"] = "Dentist"
+
+        patient = patient_map.get(str(d.get("patient_id") or ""))
+        if patient:
+            pu = user_map.get(str(patient.user_id))
+            d["patient_user_id"] = str(patient.user_id)
+            d["patient_name"] = f"{pu.first_name} {pu.last_name}" if pu else "Patient"
+        else:
+            d["patient_user_id"] = None
+            d["patient_name"] = "Patient"
+
+        d["shared_reports_count"] = count_map.get(str(d.get("id") or ""), 0)
+        result.append(d)
+    return result
 def create_appointment(request: Request, body: CreateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     if _limiter:
         _limiter.limit("10/minute")(lambda request: None)(request)
@@ -97,7 +190,7 @@ def create_appointment(request: Request, body: CreateAppointmentIn, current_user
 @router.get("")
 def list_appointments(page: int = Query(1), limit: int = Query(20), current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     result = appointment_service.list_appointments(db, str(current_user.id), current_user.role, page, limit)
-    result["data"] = [_enrich_appointment(a, db) for a in result.get("data", [])]
+    result["data"] = _bulk_enrich_appointments(result.get("data", []), db)
     return result
 
 
@@ -288,93 +381,6 @@ def unshare_report(appt_id: str, report_id: str, current_user=Depends(get_curren
     """Patient removes a shared report from an appointment."""
     from app.models.appointment_report import AppointmentReport
     appt = appointment_service.get_appointment(db, appt_id, current_user)
-    db.query(AppointmentReport).filter(
-        AppointmentReport.appointment_id == appt.id,
-        AppointmentReport.report_id == report_id,
-    ).delete()
-    db.commit()
-
-
-
-# ---------------------------------------------------------------------------
-# Shared Reports (Phase 2)
-# ---------------------------------------------------------------------------
-
-class ShareReportsIn(BaseModel):
-    report_ids: List[str]
-
-
-@router.get("/{appt_id}/reports", dependencies=[Depends(get_current_user)])
-def list_shared_reports(appt_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    """List reports shared for this appointment."""
-    from app.models.appointment_report import AppointmentReport
-    from app.models.report import Report
-    from app.core.exceptions import ForbiddenException, NotFoundException
-
-    appt = appointment_service.get_appointment(db, appt_id, current_user)
-    shared = (
-        db.query(AppointmentReport)
-        .filter(AppointmentReport.appointment_id == appt.id)
-        .all()
-    )
-    result = []
-    for s in shared:
-        r = db.query(Report).filter(Report.id == s.report_id).first()
-        if r:
-            result.append({
-                "report_id": str(r.id),
-                "final_diagnosis": r.final_diagnosis,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "pdf_url": r.pdf_url,
-                "is_auto_generated": r.is_auto_generated,
-                "shared_at": s.shared_at.isoformat() if s.shared_at else None,
-            })
-    return result
-
-
-@router.post("/{appt_id}/reports", dependencies=[Depends(require_role("patient"))], status_code=status.HTTP_201_CREATED)
-def share_reports(appt_id: str, body: ShareReportsIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    """Patient shares additional reports with the dentist for this appointment."""
-    from app.models.appointment_report import AppointmentReport
-    from app.models.report import Report
-    from app.core.exceptions import ForbiddenException
-
-    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-    if not patient:
-        raise ForbiddenException()
-    appt = appointment_service.get_appointment(db, appt_id, current_user)
-    if str(appt.patient_id) != str(patient.id):
-        raise ForbiddenException()
-
-    added = []
-    for rid in body.report_ids:
-        rpt = db.query(Report).filter(Report.id == rid, Report.patient_id == patient.id).first()
-        if rpt:
-            exists = db.query(AppointmentReport).filter(
-                AppointmentReport.appointment_id == appt.id,
-                AppointmentReport.report_id == rpt.id,
-            ).first()
-            if not exists:
-                link = AppointmentReport(appointment_id=appt.id, report_id=rpt.id)
-                db.add(link)
-                added.append(str(rpt.id))
-    db.commit()
-    return {"added": added}
-
-
-@router.delete("/{appt_id}/reports/{report_id}", dependencies=[Depends(require_role("patient"))], status_code=status.HTTP_204_NO_CONTENT)
-def unshare_report(appt_id: str, report_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    """Patient removes a report from the shared list for this appointment."""
-    from app.models.appointment_report import AppointmentReport
-    from app.core.exceptions import ForbiddenException
-
-    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-    if not patient:
-        raise ForbiddenException()
-    appt = appointment_service.get_appointment(db, appt_id, current_user)
-    if str(appt.patient_id) != str(patient.id):
-        raise ForbiddenException()
-
     db.query(AppointmentReport).filter(
         AppointmentReport.appointment_id == appt.id,
         AppointmentReport.report_id == report_id,

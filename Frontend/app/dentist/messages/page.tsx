@@ -38,6 +38,7 @@ function DentistMessagesInner() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoDate, setVideoDate] = useState("");
   const [videoTime, setVideoTime] = useState("");
@@ -84,14 +85,13 @@ function DentistMessagesInner() {
     if (!isBackground) setLoading(true);
     try {
       const convs = await messagesApi.listConversations();
-      const metas = await Promise.all(
-        convs.map(async (conv) => {
-          const msgs = await messagesApi.listMessages(conv.id).catch(() => [] as MessageOut[]);
-          const unread = msgs.filter(m => m.sender_id !== user?.id && !m.is_read).length;
-          const otherName = conv.other_user_name || "Unknown";
-          return { conv, otherName, lastMsg: msgs[msgs.length - 1], unread };
-        })
-      );
+      const metas: ConvMeta[] = convs.map((conv) => {
+        const otherName = conv.other_user_name || "Unknown";
+        const lastMsg: MessageOut | undefined = conv.last_message
+          ? { id: "", conversation_id: conv.id, sender_id: conv.last_message.sender_id, text: conv.last_message.text, is_read: true, sent_at: conv.last_message.sent_at }
+          : undefined;
+        return { conv, otherName, lastMsg, unread: conv.unread_count ?? 0 };
+      });
       setConvMetas(metas);
       if (metas.length > 0 && !activeConv) {
         openConversation(metas[0]);
@@ -104,6 +104,8 @@ function DentistMessagesInner() {
     setActiveConv(meta.conv);
     setActiveOtherName(meta.otherName);
     setVideoRequestSent(false);
+    setMessagesLoading(true);
+    setMessages([]);
     await loadMessages(meta.conv.id);
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(() => loadMessages(meta.conv.id), 5000);
@@ -148,6 +150,7 @@ function DentistMessagesInner() {
       const msgs = await messagesApi.listMessages(convId);
       setMessages(msgs);
     } catch {}
+    setMessagesLoading(false);
   }
 
   async function sendMessage() {
@@ -307,20 +310,23 @@ function DentistMessagesInner() {
                   </div>
 
                   <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                    {messages.length === 0 && (
+                    {messagesLoading ? (
+                      <div style={{ textAlign: "center", paddingTop: 60, color: "var(--text-muted)", fontSize: 13 }}>Loading messages…</div>
+                    ) : messages.length === 0 ? (
                       <div style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", marginTop: 40 }}>No messages yet. Start the conversation.</div>
-                    )}
-                    {messages.map((m) => {
-                      const isMe = m.sender_id === user?.id;
-                      return (
-                        <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start" }}>
-                          <div style={{ maxWidth: "72%", background: isMe ? "var(--brand-blue)" : "var(--surface-3)", color: isMe ? "#fff" : "var(--text-primary)", borderRadius: "var(--radius-lg)", padding: "10px 14px", fontSize: 13, lineHeight: 1.6 }}>
-                            <p style={{ margin: 0 }}>{m.text}</p>
-                            <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7, textAlign: "right" }}>{fmtClock(m.sent_at)}</div>
+                    ) : (
+                      messages.map((m) => {
+                        const isMe = m.sender_id === user?.id;
+                        return (
+                          <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                            <div style={{ maxWidth: "72%", background: isMe ? "var(--brand-blue)" : "var(--surface-3)", color: isMe ? "#fff" : "var(--text-primary)", borderRadius: "var(--radius-lg)", padding: "10px 14px", fontSize: 13, lineHeight: 1.6 }}>
+                              <p style={{ margin: 0 }}>{m.text}</p>
+                              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7, textAlign: "right" }}>{fmtClock(m.sent_at)}</div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                     <div ref={bottomRef} />
                   </div>
 
