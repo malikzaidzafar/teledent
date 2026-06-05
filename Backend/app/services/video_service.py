@@ -126,7 +126,10 @@ def get_session_by_appointment(db: Session, appointment_id: str, current_user) -
     from app.models.dentist import Dentist
     from app.core.exceptions import ForbiddenException
 
-    session = db.query(VideoSession).filter(VideoSession.appointment_id == appointment_id).first()
+    session = db.query(VideoSession).filter(
+        VideoSession.appointment_id == appointment_id,
+        VideoSession.status == VideoSessionStatus.active,
+    ).first()
     if not session:
         raise NotFoundException("VideoSession for appointment", appointment_id)
 
