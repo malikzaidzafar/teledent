@@ -508,8 +508,8 @@ interface PreJoinScreenProps {
 export function PreJoinScreen({ displayName, onJoin, onError }: PreJoinScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const videoDeviceIdRef = useRef<string | undefined>();
-  const audioDeviceIdRef = useRef<string | undefined>();
+  const videoDeviceIdRef = useRef<string | undefined>(undefined);
+  const audioDeviceIdRef = useRef<string | undefined>(undefined);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [name, setName] = useState(displayName);
