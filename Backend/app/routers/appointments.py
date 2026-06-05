@@ -89,7 +89,7 @@ def _enrich_appointment(appt, db: Session) -> dict:
 @router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("patient"))])
 def create_appointment(request: Request, body: CreateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     if _limiter:
-        _limiter.limit("10/minute")(lambda r: None)(request)
+        _limiter.limit("10/minute")(lambda request: None)(request)
     appt = appointment_service.create_appointment(db, str(current_user.id), body.model_dump())
     return _enrich_appointment(appt, db)
 
