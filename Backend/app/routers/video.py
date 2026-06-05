@@ -56,13 +56,19 @@ async def create_session(
     # If the session already existed (other party already started it),
     # skip the notification to avoid a ping-pong loop.
     if is_new_session:
+        import logging
+        _logger = logging.getLogger(__name__)
         try:
             patient_record = db.query(Patient).filter(Patient.id == appt.patient_id).first()
             dentist_record = db.query(Dentist).filter(Dentist.id == appt.dentist_id).first()
-            if patient_record and dentist_record:
+            if not patient_record or not dentist_record:
+                _logger.error("Cannot send call notification: patient_record=%s, dentist_record=%s", patient_record, dentist_record)
+            else:
                 patient_user = db.query(User).filter(User.id == patient_record.user_id).first()
                 dentist_user = db.query(User).filter(User.id == dentist_record.user_id).first()
-                if patient_user and dentist_user:
+                if not patient_user or not dentist_user:
+                    _logger.error("Cannot send call notification: patient_user=%s, dentist_user=%s", patient_user, dentist_user)
+                else:
                     patient_name = f"{patient_user.first_name} {patient_user.last_name}"
                     dentist_name = f"Dr. {dentist_user.first_name} {dentist_user.last_name}"
                     if current_user.role == "dentist":
@@ -73,6 +79,7 @@ async def create_session(
                         # Patient is the caller → notify dentist
                         notify_uid = str(dentist_record.user_id)
                         caller_name = patient_name
+                    _logger.info("Sending incoming_call WS to user %s (connected=%s)", notify_uid, manager.is_connected(notify_uid))
                     await manager.send(notify_uid, {
                         "type": "incoming_call",
                         "session_id": str(session.id),
@@ -83,9 +90,9 @@ async def create_session(
                     notification_service.notify_call_started(
                         db, notify_uid, caller_name, str(body.appointment_id), str(session.id)
                     )
+                    _logger.info("Call notification sent successfully to %s", notify_uid)
         except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning("Failed to send call started notification: %s", exc)
+            _logger.exception("Failed to send call started notification: %s", exc)
 
     return {"session_id": str(session.id), "room_name": session.room_name}
 
@@ -147,7 +154,7 @@ def get_recording(session_id: str, current_user=Depends(get_current_user), db: S
 
 
 @router.post("/{session_id}/decline")
-def decline_session(session_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+async def decline_session(session_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Decline an incoming call — sets session status to declined and notifies caller."""
     from app.models.video_session import VideoSession, VideoSessionStatus
     from app.models.appointment import Appointment
@@ -156,7 +163,6 @@ def decline_session(session_id: str, current_user=Depends(get_current_user), db:
     from app.models.user import User
     from app.core.exceptions import ForbiddenException, NotFoundException
     from app.services import notification_service
-    import asyncio
 
     session = db.query(VideoSession).filter(VideoSession.id == session_id).first()
     if not session:
@@ -202,7 +208,7 @@ def decline_session(session_id: str, current_user=Depends(get_current_user), db:
                     "appointment_id": str(appt.id),
                     "decliner_name": decliner_name,
                 }
-                asyncio.get_event_loop().create_task(manager.send(notify_uid, event))
+                await manager.send(notify_uid, event)
                 notification_service.notify_call_missed(db, notify_uid, decliner_name, str(appt.id))
         except Exception as exc:
             import logging

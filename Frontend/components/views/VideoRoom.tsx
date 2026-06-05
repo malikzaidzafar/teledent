@@ -17,7 +17,6 @@ import {
   useLocalParticipant,
   useRoomContext,
   ParticipantTile,
-  PreJoin,
   type LocalUserChoices,
 } from "@livekit/components-react";
 import {
@@ -507,39 +506,228 @@ interface PreJoinScreenProps {
 }
 
 export function PreJoinScreen({ displayName, onJoin, onError }: PreJoinScreenProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoDeviceIdRef = useRef<string | undefined>();
+  const audioDeviceIdRef = useRef<string | undefined>();
+  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [name, setName] = useState(displayName);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        videoDeviceIdRef.current = stream.getVideoTracks()[0]?.getSettings().deviceId;
+        audioDeviceIdRef.current = stream.getAudioTracks()[0]?.getSettings().deviceId;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch (err) {
+        if (active) onError?.(err as Error);
+      }
+    })();
+    return () => {
+      active = false;
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, [onError]);
+
+  function toggleVideo() {
+    setVideoEnabled(v => {
+      const next = !v;
+      streamRef.current?.getVideoTracks().forEach(t => { t.enabled = next; });
+      return next;
+    });
+  }
+
+  function toggleAudio() {
+    setAudioEnabled(v => {
+      const next = !v;
+      streamRef.current?.getAudioTracks().forEach(t => { t.enabled = next; });
+      return next;
+    });
+  }
+
+  function handleJoin() {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    onJoin({
+      username: name.trim() || displayName,
+      videoEnabled,
+      audioEnabled,
+      videoDeviceId: videoDeviceIdRef.current,
+      audioDeviceId: audioDeviceIdRef.current,
+    });
+  }
+
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", minHeight: "62vh", gap: 28, padding: "32px 16px",
+      justifyContent: "center", minHeight: "68vh", padding: "40px 16px",
     }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-          background: "linear-gradient(135deg, #1e40af, #0ea5e9)",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
-        }}>🎥</div>
-        <div style={{ fontSize: 21, fontWeight: 800, marginBottom: 6, letterSpacing: "-0.02em" }}>
-          Ready to join?
-        </div>
-        <div style={{ fontSize: 14, color: "var(--text-secondary)", maxWidth: 360, margin: "0 auto" }}>
-          Check your camera and microphone before entering the consultation.
-        </div>
-      </div>
       <div style={{
-        background: "var(--surface)", border: "1px solid var(--border)",
-        borderRadius: 16, padding: 28, width: "100%", maxWidth: 540,
-        boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
+        width: "100%", maxWidth: 500,
+        borderRadius: 20, overflow: "hidden",
+        border: "1px solid var(--border)",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
+        background: "var(--surface)",
       }}>
-        <PreJoin
-          defaults={{ username: displayName, videoEnabled: true, audioEnabled: true }}
-          onSubmit={onJoin}
-          onError={onError}
-          joinLabel="Join Consultation"
-          micLabel="Microphone"
-          camLabel="Camera"
-          userLabel="Your name"
-          persistUserChoices={true}
-        />
+
+        {/* Header */}
+        <div style={{
+          background: "linear-gradient(135deg, #1e3a8a 0%, #1d6fec 60%, #0ea5e9 100%)",
+          padding: "22px 28px 20px",
+          display: "flex", alignItems: "center", gap: 16,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 13, flexShrink: 0,
+            background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+          }}>🎥</div>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 3 }}>
+              Ready to join?
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
+              Check your camera and mic before entering.
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Camera preview */}
+          <div style={{
+            position: "relative", borderRadius: 12, overflow: "hidden",
+            background: "#0f172a", aspectRatio: "16/9",
+            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+          }}>
+            <video
+              ref={videoRef}
+              autoPlay muted playsInline
+              style={{
+                width: "100%", height: "100%", objectFit: "cover",
+                display: videoEnabled ? "block" : "none",
+                transform: "scaleX(-1)",
+              }}
+            />
+            {!videoEnabled && (
+              <div style={{
+                position: "absolute", inset: 0,
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
+              }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: "50%",
+                  background: "rgba(255,255,255,0.06)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <IconCamOff />
+                </div>
+                <span style={{ color: "#64748b", fontSize: 13, fontWeight: 500 }}>Camera is off</span>
+              </div>
+            )}
+
+            {/* Mic + Cam toggles overlaid on preview */}
+            <div style={{
+              position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)",
+              display: "flex", gap: 10,
+            }}>
+              {([
+                { on: audioEnabled, toggle: toggleAudio, iconOn: <IconMicOn />, iconOff: <IconMicOff />, label: audioEnabled ? "Mute" : "Unmute" },
+                { on: videoEnabled, toggle: toggleVideo, iconOn: <IconCamOn />, iconOff: <IconCamOff />, label: videoEnabled ? "Camera off" : "Camera on" },
+              ] as const).map((btn, i) => (
+                <button
+                  key={i}
+                  onClick={btn.toggle}
+                  title={btn.label}
+                  style={{
+                    width: 44, height: 44, borderRadius: "50%",
+                    border: "1.5px solid rgba(255,255,255,0.18)",
+                    background: btn.on ? "rgba(15,23,42,0.55)" : "rgba(239,68,68,0.82)",
+                    backdropFilter: "blur(10px)",
+                    color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", outline: "none",
+                    transition: "background 0.15s, transform 0.1s",
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.08)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+                >
+                  {btn.on ? btn.iconOn : btn.iconOff}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status chips */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { label: audioEnabled ? "Mic on" : "Mic off", on: audioEnabled, icon: audioEnabled ? <IconMicOn /> : <IconMicOff /> },
+              { label: videoEnabled ? "Camera on" : "Camera off", on: videoEnabled, icon: videoEnabled ? <IconCamOn /> : <IconCamOff /> },
+            ].map((chip, i) => (
+              <div key={i} style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "4px 12px 4px 8px", borderRadius: 20,
+                fontSize: 12, fontWeight: 600,
+                background: chip.on ? "#f0fdf4" : "#fef2f2",
+                color: chip.on ? "#15803d" : "#b91c1c",
+                border: `1px solid ${chip.on ? "#bbf7d0" : "#fecaca"}`,
+              }}>
+                <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                  {chip.icon}
+                </span>
+                {chip.label}
+              </div>
+            ))}
+          </div>
+
+          {/* Name field */}
+          <div>
+            <label style={{
+              fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+              textTransform: "uppercase", letterSpacing: "0.06em",
+              marginBottom: 6, display: "block",
+            }}>Your name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Enter your name"
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: 10,
+                border: "1.5px solid var(--border)",
+                fontSize: 14, fontWeight: 500, color: "var(--text-primary)",
+                background: "var(--bg)", outline: "none", boxSizing: "border-box",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = "#1d6fec"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(29,111,236,0.12)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+            />
+          </div>
+
+          {/* Join button */}
+          <button
+            onClick={handleJoin}
+            style={{
+              width: "100%", padding: "13px 20px",
+              background: "#1d6fec", color: "#fff",
+              border: "none", borderRadius: 11,
+              fontSize: 15, fontWeight: 700,
+              cursor: "pointer", letterSpacing: "0.01em",
+              boxShadow: "0 4px 16px rgba(29,111,236,0.30)",
+              transition: "background 0.15s, box-shadow 0.15s, transform 0.1s",
+              outline: "none",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#1558c9"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#1d6fec"; e.currentTarget.style.transform = "none"; }}
+          >
+            Join Consultation
+          </button>
+        </div>
       </div>
     </div>
   );

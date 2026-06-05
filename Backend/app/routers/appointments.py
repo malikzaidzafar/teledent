@@ -180,6 +180,8 @@ def _bulk_enrich_appointments(appts: list, db: Session) -> list:
         d["shared_reports_count"] = count_map.get(str(d.get("id") or ""), 0)
         result.append(d)
     return result
+
+@router.post("", dependencies=[Depends(require_role("patient"))])
 def create_appointment(request: Request, body: CreateAppointmentIn, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     if _limiter:
         _limiter.limit("10/minute")(lambda request: None)(request)

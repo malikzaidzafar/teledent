@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     PAYMENT_CURRENCY: str = "usd"
     CONSULTATION_FEE_CENTS: int = 2500  # $25.00 default
 
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # Rate limiting
     RATE_LIMIT_AUTH: str = "10/minute"
     RATE_LIMIT_SCAN: str = "5/minute"

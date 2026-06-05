@@ -4,7 +4,7 @@ import AppLayout from "@/components/common/AppLayout";
 import { PageHeader, Badge, Avatar, SectionCard } from "@/components/ui/shared";
 import { useRequireAuth } from "@/lib/auth";
 import { useAppointments } from "@/lib/hooks/useAppointments";
-import { appointmentApi, messagesApi, type SharedReport } from "@/lib/api";
+import { appointmentApi, messagesApi, reportApi, type SharedReport } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 type Tab = "pending" | "confirmed" | "completed" | "all";
@@ -37,6 +37,7 @@ export default function DentistAppointmentsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [viewingReports, setViewingReports] = useState<string | null>(null);
   const [reportsByAppt, setReportsByAppt] = useState<Record<string, SharedReport[]>>({});
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{ id: string; patientName: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -302,9 +303,30 @@ export default function DentistAppointmentsPage() {
                                   {r.is_auto_generated ? " · AI Generated" : " · Dentist Review"}
                                 </div>
                               </div>
-                              {r.pdf_url && (
-                                <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>View PDF</a>
-                              )}
+                              <button
+                                className="btn btn-primary btn-sm"
+                                style={{ flexShrink: 0 }}
+                                disabled={downloadingPdf === r.report_id}
+                                onClick={async () => {
+                                  setDownloadingPdf(r.report_id);
+                                  try {
+                                    const url = await reportApi.downloadPdf(r.report_id);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `teledent-report-${r.report_id.slice(0, 8)}.pdf`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                                  } catch {
+                                    // silently fail
+                                  } finally {
+                                    setDownloadingPdf(null);
+                                  }
+                                }}
+                              >
+                                {downloadingPdf === r.report_id ? "Loading…" : "View PDF"}
+                              </button>
                             </div>
                           ))}
                         </div>

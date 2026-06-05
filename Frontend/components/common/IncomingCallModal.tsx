@@ -3,12 +3,16 @@
  * components/common/IncomingCallModal.tsx
  * Global modal that appears when a WebSocket "incoming_call" event is received.
  * Rendered in the root layout so it works from any page.
+ *
+ * FALLBACK: Also polls the notifications API every 5s for recent "call.started"
+ * notifications, so if the WebSocket event was missed (e.g. connection dropped
+ * momentarily), the user still sees the incoming call.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/lib/websocket-context";
 import { useAuth } from "@/lib/auth";
-import { videoApi } from "@/lib/api";
+import { videoApi, notificationApi } from "@/lib/api";
 
 interface IncomingCall {
   sessionId: string;
@@ -17,13 +21,16 @@ interface IncomingCall {
 }
 
 export default function IncomingCallModal() {
-  const { lastEvent } = useWebSocket();
+  const { lastEvent, isConnected } = useWebSocket();
   const { user } = useAuth();
   const router = useRouter();
   const [call, setCall] = useState<IncomingCall | null>(null);
   const [declining, setDeclining] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenNotifIds = useRef<Set<string>>(new Set());
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Handle incoming_call from WebSocket (primary path)
   useEffect(() => {
     if (!lastEvent || !user) return;
 
@@ -44,6 +51,58 @@ export default function IncomingCallModal() {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [lastEvent, user]);
+
+  // Fallback: poll notifications API for recent "call.started" notifications
+  // ONLY when WebSocket is disconnected (primary WS path handles it otherwise)
+  const failCountRef = useRef(0);
+  const checkForMissedCalls = useCallback(async () => {
+    if (!user || call || isConnected) return; // skip if WS is connected or already showing a call
+    try {
+      const res = await notificationApi.list(1, true);
+      failCountRef.current = 0; // reset on success
+      const recentCallNotif = res.data?.find((n) => {
+        if (n.type !== "call.started" || n.is_read) return false;
+        if (seenNotifIds.current.has(n.id)) return false;
+        // Only show if created within the last 60 seconds
+        const created = new Date(n.created_at).getTime();
+        const now = Date.now();
+        return now - created < 60_000;
+      });
+      if (recentCallNotif) {
+        seenNotifIds.current.add(recentCallNotif.id);
+        const data = recentCallNotif.data as { appointment_id?: string; session_id?: string };
+        if (data.session_id && data.appointment_id) {
+          setCall({
+            sessionId: data.session_id,
+            appointmentId: data.appointment_id,
+            callerName: recentCallNotif.body?.replace(" has started the video consultation.", "") || "Caller",
+          });
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => setCall(null), 60_000);
+          notificationApi.markRead(recentCallNotif.id).catch(() => {});
+        }
+      }
+    } catch {
+      failCountRef.current += 1; // backoff handled by skipping polls after failures
+    }
+  }, [user, call, isConnected]);
+
+  // Poll only when WS is disconnected, with backoff on repeated failures
+  useEffect(() => {
+    if (!user || isConnected) {
+      // WS is connected — no need to poll
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    // WS disconnected — start polling at 15s interval
+    const interval = Math.min(15_000 * Math.max(1, failCountRef.current), 60_000);
+    pollRef.current = setInterval(() => {
+      if (failCountRef.current < 5) checkForMissedCalls();
+    }, interval);
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [user, isConnected, checkForMissedCalls]);
 
   if (!call) return null;
 

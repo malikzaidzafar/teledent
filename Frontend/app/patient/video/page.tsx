@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/shared";
 import Link from "next/link";
 import { useRequireAuth } from "@/lib/auth";
 import { videoApi } from "@/lib/api";
+import { useWebSocket } from "@/lib/websocket-context";
 import { useState, useCallback, Suspense, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import VideoRoom, { PreJoinScreen } from "@/components/views/VideoRoom";
@@ -29,7 +30,19 @@ function PatientVideoPageInner() {
   const [displayName, setDisplayName] = useState("");
   const [callDuration, setCallDuration] = useState(0);
   const [userChoices, setUserChoices] = useState<LocalUserChoices | null>(null);
+  const [declinedBy, setDeclinedBy] = useState<string | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { lastEvent } = useWebSocket();
+
+  // Listen for call_declined from the other party
+  useEffect(() => {
+    if (!lastEvent || lastEvent.type !== "call_declined") return;
+    if (appointmentId && lastEvent.appointment_id === appointmentId) {
+      setDeclinedBy((lastEvent.decliner_name as string) || "The other party");
+      setPageState("error");
+      setErrorMsg(null);
+    }
+  }, [lastEvent, appointmentId]);
 
   // Clean up redirect timer on unmount
   useEffect(() => {
@@ -170,10 +183,10 @@ function PatientVideoPageInner() {
 
         {pageState === "error" && (
           <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "var(--radius)", padding: "20px 24px", maxWidth: 560 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>⚠️ Could not join call</div>
-            <div style={{ fontSize: 13, marginBottom: 16 }}>{errorMsg}</div>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>{declinedBy ? "📞 Call Declined" : "⚠️ Could not join call"}</div>
+            <div style={{ fontSize: 13, marginBottom: 16 }}>{declinedBy ? `${declinedBy} declined the video call.` : errorMsg}</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setErrorMsg(null); setPageState("prejoin"); }}>Try Again</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setErrorMsg(null); setDeclinedBy(null); setPageState("prejoin"); }}>Try Again</button>
               <Link href="/patient/appointments" className="btn btn-ghost btn-sm">Back to Appointments</Link>
             </div>
           </div>

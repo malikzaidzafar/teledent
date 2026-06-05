@@ -52,7 +52,7 @@ def create_auto_report(db: Session, scan, analysis) -> Report:
         dentist_id=None,
         is_auto_generated=True,
         final_diagnosis=top_condition,
-        dentist_notes=expl.get("clinical_notes") or None,
+        dentist_notes=None,
         recommended_actions=recommended_actions,
         follow_up_date=None,
     )

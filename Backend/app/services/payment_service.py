@@ -9,6 +9,7 @@ In TEST MODE:
 import uuid
 import stripe
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.models.payment import Payment, PaymentStatus
@@ -98,10 +99,18 @@ def create_payment_intent(db: Session, appointment_id: str, user_id: str) -> dic
         currency=currency,
         status=PaymentStatus.pending,
     )
-    db.add(payment)
-    db.commit()
-    db.refresh(payment)
-    return _payment_response(payment)
+    try:
+        db.add(payment)
+        db.commit()
+        db.refresh(payment)
+        return _payment_response(payment)
+    except IntegrityError:
+        db.rollback()
+        # Another concurrent request already inserted a record — return it
+        existing = db.query(Payment).filter(Payment.appointment_id == appointment_id).first()
+        if existing:
+            return _payment_response(existing)
+        raise
 
 
 def get_payment_status(db: Session, appointment_id: str, user_id: str) -> dict:

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -33,23 +34,7 @@ export default function Navbar() {
       >
         {/* Logo */}
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              background: "var(--brand-blue)",
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "white",
-              fontSize: 18,
-              fontWeight: 800,
-              flexShrink: 0,
-            }}
-          >
-
-          </div>
+          <Image src="/logo.png" alt="TeledentAI" width={36} height={36} style={{ borderRadius: 8, flexShrink: 0 }} />
           <span
             style={{
               fontSize: 18,

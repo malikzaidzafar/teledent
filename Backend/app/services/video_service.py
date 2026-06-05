@@ -83,21 +83,21 @@ def create_session(db: Session, appointment_id: str):
     appt = db.query(Appointment).filter(Appointment.id == appointment_id).first()
     if not appt:
         raise NotFoundException("Appointment", appointment_id)
-    if appt.status != AppointmentStatus.confirmed:
+    # Allow video calls for confirmed or completed appointments (participants can reconnect anytime)
+    if appt.status in (AppointmentStatus.cancelled, AppointmentStatus.no_show):
         raise ConflictException(
-            f"Cannot start a video session for an appointment with status '{appt.status.value}'. "
-            "The appointment must be confirmed first."
+            f"Cannot start a video session for an appointment with status '{appt.status.value}'."
         )
 
     # Check if a session already exists for this appointment
     existing = db.query(VideoSession).filter(VideoSession.appointment_id == appointment_id).first()
     if existing:
-        # D6: Do NOT silently re-activate an ended session
-        if existing.status == VideoSessionStatus.ended:
-            raise ConflictException(
-                "This video session has already ended. Contact support to re-open the appointment."
-            )
-        return existing, False  # already existed — do NOT re-send notification
+        # If session was ended or declined, allow creating a new one (re-call)
+        if existing.status in (VideoSessionStatus.ended, VideoSessionStatus.declined):
+            db.delete(existing)
+            db.commit()
+        else:
+            return existing, False  # already existed — do NOT re-send notification
 
     room_name = f"teledent-{appointment_id}"
     session = VideoSession(

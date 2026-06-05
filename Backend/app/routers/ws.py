@@ -43,11 +43,18 @@ class ConnectionManager:
 
     async def send(self, user_id: str, data: dict):
         """Send a JSON event to all active connections for a user."""
+        connections = self._connections.get(user_id, set())
+        if not connections:
+            logger.warning("WS send: user=%s has NO active connections — event '%s' will be missed!", user_id, data.get("type"))
+            return
+        logger.info("WS send: user=%s, event='%s', connections=%d", user_id, data.get("type"), len(connections))
         dead = set()
-        for ws in self._connections.get(user_id, set()):
+        for ws in connections:
             try:
                 await ws.send_json(data)
-            except Exception:
+                logger.info("WS send: successfully delivered '%s' to user=%s", data.get("type"), user_id)
+            except Exception as exc:
+                logger.warning("WS send: failed to deliver to user=%s: %s", user_id, exc)
                 dead.add(ws)
         for ws in dead:
             self._connections.get(user_id, set()).discard(ws)

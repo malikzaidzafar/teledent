@@ -282,12 +282,22 @@ a { color: inherit; }
 #stripe-dev-tools-wrapper,
 #stripe-badge-iframe,
 .stripe-test-badge,
-.__PrivateStripeElement-test-mode-badge,
+.__PrivateStripeElement-test-mode-badge,.NxBHq1ur__Easel-contentWrapper,.LcvUkwqF__Container,
 [data-testid="stripe-test-mode-badge"],
 iframe[src*="js.stripe.com"][title*="test"],
 iframe[src*="js.stripe.com"][name*="__privateStripeFrame"],
-body > iframe[src*="stripe.com"] {
+body > iframe[src*="stripe.com"],
+button[aria-label="Open Stripe Developer Tools"],
+div[class*="__Easel"] {
   display: none !important;
+}
+/* :has() — hides the Stripe toolbar root container regardless of hashed class names */
+body > div:has(button[aria-label="Open Stripe Developer Tools"]),
+body > div:has(div[class*="__Easel"]),
+body > div#root:has([class*="Easel"]) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* ── LiveKit video grid overrides ────────────────────────────── */
@@ -305,4 +315,6 @@ body > iframe[src*="stripe.com"] {
   object-fit: cover;
   border-radius: 8px;
 }
+
+
 

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useSidebar } from "@/lib/sidebar-context";
 
 interface MobileHeaderProps {
@@ -19,7 +20,7 @@ export default function MobileHeader({ title }: MobileHeaderProps) {
 
       </button>
       <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-        <div style={{ width: 28, height: 28, background: "var(--brand-blue)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#fff" }}></div>
+        <Image src="/logo.png" alt="TeledentAI" width={28} height={28} style={{ borderRadius: 6, flexShrink: 0 }} />
         <span className="logo-text" style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.03em" }}>
           Teledent<span style={{ color: "var(--brand-blue)" }}>AI</span>
         </span>

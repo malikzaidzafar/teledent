@@ -7,8 +7,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #1e293b; background: #fff; padding: 36px 44px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1d6fec; padding-bottom: 18px; margin-bottom: 26px; }
-    .logo { font-size: 22px; font-weight: 900; color: #1d6fec; letter-spacing: -0.03em; }
-    .logo span { color: #64748b; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo img { height: 40px; width: auto; }
     .report-meta { text-align: right; font-size: 11px; color: #64748b; line-height: 1.7; }
     .report-meta .report-title { font-weight: 800; font-size: 13px; color: #1e293b; margin-bottom: 2px; }
     .ai-badge { display: inline-block; background: #eff6ff; color: #1d6fec; border: 1px solid #bfdbfe; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; margin-bottom: 18px; }
@@ -62,7 +62,7 @@
   <!-- Header -->
   <div class="header">
     <div>
-      <div class="logo">Teledent<span>AI</span></div>
+      <div class="logo"><img src="logo.png" alt="TeledentAI" /></div>
       <div style="font-size:11px;color:#64748b;margin-top:3px">AI-Powered Dental Diagnostics Platform</div>
     </div>
     <div class="report-meta">

@@ -181,9 +181,20 @@ function DiagnosisReportPageInner() {
                 background: "#f0f9ff", border: "1px solid #bae6fd",
                 borderLeft: `4px solid #0ea5e9`,
                 borderRadius: "var(--radius)", padding: "14px 18px",
-                marginBottom: 24, fontSize: 14, lineHeight: 1.75, color: "#0c4a6e",
+                marginBottom: expl?.clinical_notes ? 12 : 24, fontSize: 14, lineHeight: 1.75, color: "#0c4a6e",
               }}>
                 <strong>AI Summary:</strong> {expl.patient_summary}
+              </div>
+            )}
+            {/* ── AI Clinical Notes ── */}
+            {expl?.clinical_notes && (
+              <div style={{
+                background: "#fafafa", border: "1px solid #e2e8f0",
+                borderLeft: `4px solid #94a3b8`,
+                borderRadius: "var(--radius)", padding: "14px 18px",
+                marginBottom: 24, fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)",
+              }}>
+                <strong style={{ color: "var(--text-primary)" }}>AI Clinical Observation:</strong> {expl.clinical_notes}
               </div>
             )}
 
