@@ -74,7 +74,8 @@ async def _close_livekit_room(room_name: str):
         logger.error("Failed to close LiveKit room '%s': %s", room_name, exc)
 
 
-def create_session(db: Session, appointment_id: str) -> VideoSession:
+def create_session(db: Session, appointment_id: str):
+    """Returns (VideoSession, is_new: bool). is_new=False when session already existed."""
     from app.models.appointment import Appointment, AppointmentStatus
     from app.core.exceptions import ConflictException
 
@@ -96,7 +97,7 @@ def create_session(db: Session, appointment_id: str) -> VideoSession:
             raise ConflictException(
                 "This video session has already ended. Contact support to re-open the appointment."
             )
-        return existing
+        return existing, False  # already existed — do NOT re-send notification
 
     room_name = f"teledent-{appointment_id}"
     session = VideoSession(
@@ -108,7 +109,7 @@ def create_session(db: Session, appointment_id: str) -> VideoSession:
     db.add(session)
     db.commit()
     db.refresh(session)
-    return session
+    return session, True  # newly created — send notification
 
 
 def get_session(db: Session, session_id: str) -> VideoSession:

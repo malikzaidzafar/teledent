@@ -48,6 +48,9 @@ function PatientVideoPageInner() {
       }
       setPageState("connecting");
       try {
+        // Patient joining: try to get the existing session the dentist started.
+        // Falls back to createSession only if the patient initiates first —
+        // in that case createSession fires the incoming_call notification to the dentist.
         let sid: string;
         try {
           const existing = await videoApi.getSessionByAppointment(appointmentId);

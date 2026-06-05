@@ -50,38 +50,42 @@ async def create_session(
             raise ForbiddenException("You are not a participant in this appointment.")
 
     session = video_service.create_session(db, body.appointment_id)
+    session, is_new_session = session  # unpack (VideoSession, is_new: bool)
 
-    # Notify ONLY the other participant — we are in an async context so await works correctly
-    try:
-        patient_record = db.query(Patient).filter(Patient.id == appt.patient_id).first()
-        dentist_record = db.query(Dentist).filter(Dentist.id == appt.dentist_id).first()
-        if patient_record and dentist_record:
-            patient_user = db.query(User).filter(User.id == patient_record.user_id).first()
-            dentist_user = db.query(User).filter(User.id == dentist_record.user_id).first()
-            if patient_user and dentist_user:
-                patient_name = f"{patient_user.first_name} {patient_user.last_name}"
-                dentist_name = f"Dr. {dentist_user.first_name} {dentist_user.last_name}"
-                if current_user.role == "dentist":
-                    # Dentist is the caller → notify patient
-                    notify_uid = str(patient_record.user_id)
-                    caller_name = dentist_name
-                else:
-                    # Patient is the caller → notify dentist
-                    notify_uid = str(dentist_record.user_id)
-                    caller_name = patient_name
-                await manager.send(notify_uid, {
-                    "type": "incoming_call",
-                    "session_id": str(session.id),
-                    "appointment_id": str(body.appointment_id),
-                    "caller_name": caller_name,
-                    "caller_id": str(current_user.id),
-                })
-                notification_service.notify_call_started(
-                    db, notify_uid, caller_name, str(body.appointment_id), str(session.id)
-                )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("Failed to send call started notification: %s", exc)
+    # Only notify the other party when the session is freshly created.
+    # If the session already existed (other party already started it),
+    # skip the notification to avoid a ping-pong loop.
+    if is_new_session:
+        try:
+            patient_record = db.query(Patient).filter(Patient.id == appt.patient_id).first()
+            dentist_record = db.query(Dentist).filter(Dentist.id == appt.dentist_id).first()
+            if patient_record and dentist_record:
+                patient_user = db.query(User).filter(User.id == patient_record.user_id).first()
+                dentist_user = db.query(User).filter(User.id == dentist_record.user_id).first()
+                if patient_user and dentist_user:
+                    patient_name = f"{patient_user.first_name} {patient_user.last_name}"
+                    dentist_name = f"Dr. {dentist_user.first_name} {dentist_user.last_name}"
+                    if current_user.role == "dentist":
+                        # Dentist is the caller → notify patient
+                        notify_uid = str(patient_record.user_id)
+                        caller_name = dentist_name
+                    else:
+                        # Patient is the caller → notify dentist
+                        notify_uid = str(dentist_record.user_id)
+                        caller_name = patient_name
+                    await manager.send(notify_uid, {
+                        "type": "incoming_call",
+                        "session_id": str(session.id),
+                        "appointment_id": str(body.appointment_id),
+                        "caller_name": caller_name,
+                        "caller_id": str(current_user.id),
+                    })
+                    notification_service.notify_call_started(
+                        db, notify_uid, caller_name, str(body.appointment_id), str(session.id)
+                    )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to send call started notification: %s", exc)
 
     return {"session_id": str(session.id), "room_name": session.room_name}
 
