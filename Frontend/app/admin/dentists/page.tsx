@@ -236,11 +236,6 @@ export default function AdminDentistsPage() {
       <PageHeader
         title="Dentist Management"
         subtitle={`${total} registered dental professional${total !== 1 ? "s" : ""}`}
-        action={
-          <button className="btn btn-primary btn-sm" onClick={() => setShowInvite(true)}>
-            + Invite Dentist
-          </button>
-        }
       />
 
       <div className="page-body">
