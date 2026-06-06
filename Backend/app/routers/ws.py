@@ -16,6 +16,7 @@ import logging
 from typing import Dict, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.core.security import decode_token
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ async def ws_notifications(
     token: str = Query(...),
 ):
     """Real-time notification channel. Authenticate via ?token=<JWT>."""
+    from app.database import SessionLocal
     # Decode token
     payload = decode_token(token)
     if not payload or not payload.get("sub"):
@@ -85,6 +87,45 @@ async def ws_notifications(
 
     user_id = str(payload["sub"])
     await manager.connect(user_id, websocket)
+
+    # Replay any missed incoming-call notification (created in last 60 s, session still active)
+    db = SessionLocal()
+    try:
+        from app.models.notification import Notification
+        from app.models.video_session import VideoSession, VideoSessionStatus
+        since = datetime.now(timezone.utc) - timedelta(seconds=60)
+        pending = (
+            db.query(Notification)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.type == "call.started",
+                Notification.is_read == False,
+                Notification.created_at >= since,
+            )
+            .order_by(Notification.created_at.desc())
+            .first()
+        )
+        if pending:
+            data = pending.data or {}
+            sid = data.get("session_id")
+            appt_id = data.get("appointment_id")
+            # Only replay if the session is still active (not ended/declined)
+            if sid and appt_id:
+                session = db.query(VideoSession).filter(VideoSession.id == sid).first()
+                if session and session.status == VideoSessionStatus.active:
+                    caller_name = data.get("caller_name") or "Caller"
+                    await websocket.send_json({
+                        "type": "incoming_call",
+                        "session_id": str(sid),
+                        "appointment_id": str(appt_id),
+                        "caller_name": caller_name,
+                        "caller_id": "",
+                    })
+                    logger.info("Replayed missed incoming_call to user=%s session=%s", user_id, sid)
+    except Exception as exc:
+        logger.warning("Failed to replay missed call for user %s: %s", user_id, exc)
+    finally:
+        db.close()
 
     try:
         # Keep connection alive; client may send pings

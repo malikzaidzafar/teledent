@@ -29,6 +29,7 @@ export default function IncomingCallModal() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenNotifIds = useRef<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevConnectedRef = useRef(false);
 
   // Handle incoming_call from WebSocket (primary path)
   useEffect(() => {
@@ -56,7 +57,7 @@ export default function IncomingCallModal() {
   // ONLY when WebSocket is disconnected (primary WS path handles it otherwise)
   const failCountRef = useRef(0);
   const checkForMissedCalls = useCallback(async () => {
-    if (!user || call || isConnected) return; // skip if WS is connected or already showing a call
+    if (!user || call) return;
     try {
       const res = await notificationApi.list(1, true);
       failCountRef.current = 0; // reset on success
@@ -85,11 +86,19 @@ export default function IncomingCallModal() {
     } catch {
       failCountRef.current += 1; // backoff handled by skipping polls after failures
     }
-  }, [user, call, isConnected]);
+  }, [user, call]);
+
+  // On WS reconnect (false → true), immediately check for a missed call notification
+  useEffect(() => {
+    if (isConnected && !prevConnectedRef.current && user) {
+      checkForMissedCalls();
+    }
+    prevConnectedRef.current = isConnected;
+  }, [isConnected, user, checkForMissedCalls]);
 
   // Poll only when WS is disconnected, with backoff on repeated failures
   useEffect(() => {
-    if (!user || isConnected) {
+    if (!user || isConnected) { // WS is connected — backend replays on connect; no polling needed
       // WS is connected — no need to poll
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       return;

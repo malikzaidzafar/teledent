@@ -91,7 +91,7 @@ def notify_call_started(db: Session, recipient_user_id, caller_name: str, appoin
         type_="call.started",
         title="Incoming Video Call",
         body=f"{caller_name} has started the video consultation.",
-        data={"appointment_id": appointment_id, "session_id": session_id},
+        data={"appointment_id": appointment_id, "session_id": session_id, "caller_name": caller_name},
     )
 
 
