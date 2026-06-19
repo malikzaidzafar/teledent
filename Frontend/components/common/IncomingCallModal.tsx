@@ -1,18 +1,22 @@
 "use client";
 /**
  * components/common/IncomingCallModal.tsx
- * Global modal that appears when a WebSocket "incoming_call" event is received.
- * Rendered in the root layout so it works from any page.
+ * Global "incoming call" modal, rendered in the root layout so it works on any page.
  *
- * FALLBACK: Also polls the notifications API every 5s for recent "call.started"
- * notifications, so if the WebSocket event was missed (e.g. connection dropped
- * momentarily), the user still sees the incoming call.
+ * Delivery is made RELIABLE with two independent paths feeding the same modal:
+ *   1. WebSocket "incoming_call" event  → instant delivery when the socket is healthy.
+ *   2. Authoritative DB poll (every 3s) → GUARANTEED delivery even if the WebSocket
+ *      event was missed (half-open socket, reconnect gap, server restart, etc.),
+ *      because the call is persisted to the database the moment the session starts.
+ *
+ * Both paths are de-duplicated by session id, so the user rings exactly once per
+ * call and never re-rings a call they already accepted, declined, or let time out.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/lib/websocket-context";
 import { useAuth } from "@/lib/auth";
-import { videoApi, notificationApi } from "@/lib/api";
+import { videoApi } from "@/lib/api";
 
 interface IncomingCall {
   sessionId: string;
@@ -20,117 +24,113 @@ interface IncomingCall {
   callerName: string;
 }
 
+const RING_TIMEOUT_MS = 60_000; // auto-dismiss a ringing call after 60s (missed)
+const POLL_INTERVAL_MS = 3_000; // authoritative backstop poll cadence
+
 export default function IncomingCallModal() {
-  const { lastEvent, isConnected } = useWebSocket();
+  const { lastEvent } = useWebSocket();
   const { user } = useAuth();
   const router = useRouter();
   const [call, setCall] = useState<IncomingCall | null>(null);
   const [declining, setDeclining] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seenNotifIds = useRef<Set<string>>(new Set());
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevConnectedRef = useRef(false);
+  // Sessions already accepted / declined / missed — never ring for these again.
+  const dismissedRef = useRef<Set<string>>(new Set());
+  // The session currently ringing (ref mirror of `call`, readable inside intervals).
+  const activeSessionRef = useRef<string | null>(null);
 
-  // Handle incoming_call from WebSocket (primary path)
+  const dismiss = useCallback((sessionId?: string) => {
+    if (sessionId) dismissedRef.current.add(sessionId);
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    activeSessionRef.current = null;
+    setCall(null);
+  }, []);
+
+  const presentCall = useCallback((next: IncomingCall) => {
+    if (!next.sessionId || !next.appointmentId) return;
+    if (dismissedRef.current.has(next.sessionId)) return;    // already handled
+    if (activeSessionRef.current === next.sessionId) return; // already ringing this one
+    activeSessionRef.current = next.sessionId;
+    setCall(next);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => dismiss(next.sessionId), RING_TIMEOUT_MS);
+  }, [dismiss]);
+
+  // --- Path 1: WebSocket events (instant) ---
   useEffect(() => {
     if (!lastEvent || !user) return;
-
     if (lastEvent.type === "incoming_call") {
-      setCall({
+      presentCall({
         sessionId: lastEvent.session_id as string,
         appointmentId: lastEvent.appointment_id as string,
-        callerName: lastEvent.caller_name as string,
+        callerName: (lastEvent.caller_name as string) || "Caller",
       });
-      // Auto-dismiss after 60 seconds (missed call)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => setCall(null), 60_000);
-    } else if (lastEvent.type === "call_declined" || lastEvent.type === "call_missed") {
-      setCall(null);
+    } else if (
+      lastEvent.type === "call_declined" ||
+      lastEvent.type === "call_missed" ||
+      lastEvent.type === "call_ended"
+    ) {
+      const sid = lastEvent.session_id as string | undefined;
+      if (!sid || sid === activeSessionRef.current) dismiss(sid);
     }
+  }, [lastEvent, user, presentCall, dismiss]);
 
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [lastEvent, user]);
+  // --- Path 2: authoritative DB poll (guaranteed) ---
+  // Runs regardless of WebSocket state. The backend returns the active incoming
+  // call for the logged-in user straight from the database, so the call is always
+  // delivered within POLL_INTERVAL_MS even if the WebSocket dropped the event.
+  useEffect(() => {
+    if (!user || (user.role !== "patient" && user.role !== "dentist")) return;
+    let stopped = false;
+    let inFlight = false;
 
-  // Fallback: poll notifications API for recent "call.started" notifications
-  // ONLY when WebSocket is disconnected (primary WS path handles it otherwise)
-  const failCountRef = useRef(0);
-  const checkForMissedCalls = useCallback(async () => {
-    if (!user || call) return;
-    try {
-      const res = await notificationApi.list(1, true);
-      failCountRef.current = 0; // reset on success
-      const recentCallNotif = res.data?.find((n) => {
-        if (n.type !== "call.started" || n.is_read) return false;
-        if (seenNotifIds.current.has(n.id)) return false;
-        // Only show if created within the last 60 seconds
-        const created = new Date(n.created_at).getTime();
-        const now = Date.now();
-        return now - created < 60_000;
-      });
-      if (recentCallNotif) {
-        seenNotifIds.current.add(recentCallNotif.id);
-        const data = recentCallNotif.data as { appointment_id?: string; session_id?: string };
-        if (data.session_id && data.appointment_id) {
-          setCall({
-            sessionId: data.session_id,
-            appointmentId: data.appointment_id,
-            callerName: recentCallNotif.body?.replace(" has started the video consultation.", "") || "Caller",
-          });
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          timeoutRef.current = setTimeout(() => setCall(null), 60_000);
-          notificationApi.markRead(recentCallNotif.id).catch(() => {});
-        }
+    const poll = async () => {
+      if (stopped || inFlight || activeSessionRef.current) return;
+      inFlight = true;
+      try {
+        const res = await videoApi.getIncomingCall();
+        if (stopped || !res.has_call || !res.session_id || !res.appointment_id) return;
+        presentCall({
+          sessionId: res.session_id,
+          appointmentId: res.appointment_id,
+          callerName: res.caller_name || "Caller",
+        });
+      } catch {
+        /* transient network error — retry on the next tick */
+      } finally {
+        inFlight = false;
       }
-    } catch {
-      failCountRef.current += 1; // backoff handled by skipping polls after failures
-    }
-  }, [user, call]);
-
-  // On WS reconnect (false → true), immediately check for a missed call notification
-  useEffect(() => {
-    if (isConnected && !prevConnectedRef.current && user) {
-      checkForMissedCalls();
-    }
-    prevConnectedRef.current = isConnected;
-  }, [isConnected, user, checkForMissedCalls]);
-
-  // Poll only when WS is disconnected, with backoff on repeated failures
-  useEffect(() => {
-    if (!user || isConnected) { // WS is connected — backend replays on connect; no polling needed
-      // WS is connected — no need to poll
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-      return;
-    }
-    // WS disconnected — start polling at 15s interval
-    const interval = Math.min(15_000 * Math.max(1, failCountRef.current), 60_000);
-    pollRef.current = setInterval(() => {
-      if (failCountRef.current < 5) checkForMissedCalls();
-    }, interval);
-    return () => {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
-  }, [user, isConnected, checkForMissedCalls]);
+
+    poll(); // check immediately on mount / login
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => { stopped = true; clearInterval(id); };
+  }, [user, presentCall]);
+
+  // Clean up the ring timer on unmount.
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   if (!call) return null;
 
-  async function handleAccept() {
+  function handleAccept() {
     if (!call) return;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setCall(null);
+    const apptId = call.appointmentId;
+    const sid = call.sessionId;
+    dismiss(sid);
+    // Stop the call ringing everywhere (this/other devices, and on refresh).
+    videoApi.answerSession(sid).catch(() => {});
     const role = user?.role === "dentist" ? "dentist" : "patient";
-    router.push(`/${role}/video?appointment_id=${call.appointmentId}`);
+    router.push(`/${role}/video?appointment_id=${apptId}`);
   }
 
   async function handleDecline() {
     if (!call) return;
+    const sid = call.sessionId;
     setDeclining(true);
     try {
-      await videoApi.declineSession(call.sessionId);
+      await videoApi.declineSession(sid);
     } catch {}
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setCall(null);
+    dismiss(sid);
     setDeclining(false);
   }
 

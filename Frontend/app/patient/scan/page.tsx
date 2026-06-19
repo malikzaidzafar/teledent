@@ -82,9 +82,9 @@ export default function UploadScanPage() {
   const startCamera = useCallback(async () => {
     setCameraError(null);
     try {
-      // Prefer rear camera on mobile (better for dental shots), fallback to any
+      // Prefer front camera on mobile so the user can see their teeth while scanning
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
       if (videoRef.current) {

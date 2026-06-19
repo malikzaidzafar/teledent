@@ -195,6 +195,15 @@ export const videoApi = {
     request<{ message: string; notes: string }>("POST", `/video/sessions/${session_id}/notes`, { notes }),
   declineSession: (session_id: string) =>
     request<{ message: string }>("POST", `/video/sessions/${session_id}/decline`),
+  // Mark an incoming call as answered so it stops ringing here and on other devices.
+  answerSession: (session_id: string) =>
+    request<{ message: string }>("POST", `/video/sessions/${session_id}/answer`),
+  // Authoritative "is a call ringing for me?" check — polled as a reliable backstop
+  // so incoming calls are delivered even if the WebSocket event was missed.
+  getIncomingCall: () =>
+    request<{ has_call: boolean; session_id?: string; appointment_id?: string; caller_name?: string }>(
+      "GET", "/video/sessions/incoming"
+    ),
 };
 
 export const notificationApi = {
