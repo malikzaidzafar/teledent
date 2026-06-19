@@ -79,6 +79,13 @@ async def create_session(
                         # Patient is the caller → notify dentist
                         notify_uid = str(dentist_record.user_id)
                         caller_name = patient_name
+                    # Persist the durable notification FIRST so the polling backstop
+                    # (GET /video/sessions/incoming) can always find it, even if the
+                    # real-time WebSocket delivery below is missed. Persist-then-notify
+                    # guarantees the reliable path exists before the ephemeral one fires.
+                    notification_service.notify_call_started(
+                        db, notify_uid, caller_name, str(body.appointment_id), str(session.id)
+                    )
                     _logger.info("Sending incoming_call WS to user %s (connected=%s)", notify_uid, manager.is_connected(notify_uid))
                     await manager.send(notify_uid, {
                         "type": "incoming_call",
@@ -87,9 +94,6 @@ async def create_session(
                         "caller_name": caller_name,
                         "caller_id": str(current_user.id),
                     })
-                    notification_service.notify_call_started(
-                        db, notify_uid, caller_name, str(body.appointment_id), str(session.id)
-                    )
                     _logger.info("Call notification sent successfully to %s", notify_uid)
         except Exception as exc:
             _logger.exception("Failed to send call started notification: %s", exc)
@@ -106,6 +110,55 @@ def get_session_by_appointment(
     """Return an existing session for an appointment without creating one (used on page refresh)."""
     session = video_service.get_session_by_appointment(db, appointment_id, current_user)
     return {"session_id": str(session.id), "room_name": session.room_name}
+
+
+@router.get("/incoming")
+def get_incoming_call(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Authoritative 'is a call ringing for me right now?' lookup.
+
+    Returns the most recent *active* incoming call addressed to the current user
+    (the callee), computed directly from the database. This is the reliable
+    backstop the frontend polls so an incoming call is delivered even when the
+    real-time WebSocket event was missed (dropped/half-open socket, reconnect
+    gap, server restart, etc.). The DB row is written the moment the session
+    starts, so this path never depends on socket health.
+    """
+    from app.models.notification import Notification
+    from app.models.video_session import VideoSession, VideoSessionStatus
+    from datetime import datetime, timezone, timedelta
+
+    since = datetime.now(timezone.utc) - timedelta(seconds=60)
+    notif = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == str(current_user.id),
+            Notification.type == "call.started",
+            Notification.is_read == False,
+            Notification.created_at >= since,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+    if not notif:
+        return {"has_call": False}
+
+    data = notif.data or {}
+    sid = data.get("session_id")
+    appt_id = data.get("appointment_id")
+    if not sid or not appt_id:
+        return {"has_call": False}
+
+    session = db.query(VideoSession).filter(VideoSession.id == sid).first()
+    if not session or session.status != VideoSessionStatus.active:
+        # Call already ended, declined or missed — nothing is ringing.
+        return {"has_call": False}
+
+    return {
+        "has_call": True,
+        "session_id": str(sid),
+        "appointment_id": str(appt_id),
+        "caller_name": data.get("caller_name") or "Caller",
+    }
 
 
 @router.get("/{session_id}")
@@ -215,3 +268,32 @@ async def decline_session(session_id: str, current_user=Depends(get_current_user
             logging.getLogger(__name__).warning("Failed to notify call decline: %s", exc)
 
     return {"message": "Call declined."}
+
+
+@router.post("/{session_id}/answer")
+def answer_session(session_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mark an incoming call as answered.
+
+    Flags the callee's 'call.started' notification for this session as read so the
+    call stops ringing on this device, on the user's other devices, and does not
+    re-ring if the video page is refreshed while the session is still active.
+    """
+    from app.models.notification import Notification
+
+    notifs = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == str(current_user.id),
+            Notification.type == "call.started",
+            Notification.is_read == False,
+        )
+        .all()
+    )
+    changed = False
+    for n in notifs:
+        if (n.data or {}).get("session_id") == str(session_id):
+            n.is_read = True
+            changed = True
+    if changed:
+        db.commit()
+    return {"message": "Call answered."}
