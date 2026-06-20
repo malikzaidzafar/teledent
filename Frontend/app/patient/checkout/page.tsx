@@ -305,29 +305,35 @@ function CheckoutPageInner() {
           )}
 
           {!loading && !error && !paid && intent && stripePromise && (
-            <SectionCard title="Payment Details">
-              <Elements
-                stripe={stripePromise}
-                options={{
-                  clientSecret: intent.client_secret ?? undefined,
-                  appearance: {
-                    theme: "stripe",
-                    variables: {
-                      colorPrimary: "#2563eb",
-                      borderRadius: "8px",
-                      fontFamily: "Inter, system-ui, sans-serif",
+            <div style={{ background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}>
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Payment Details</h3>
+              </div>
+              <div style={{ padding: "20px" }}>
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret: intent.client_secret ?? undefined,
+                    appearance: {
+                      theme: "stripe",
+                      variables: {
+                        colorPrimary: "#2563eb",
+                        borderRadius: "8px",
+                        fontFamily: "Inter, system-ui, sans-serif",
+                        fontSizeBase: "16px",
+                      },
                     },
-                  },
-                }}
-              >
-                <CheckoutForm
-                  appointmentId={appointmentId}
-                  amountCents={intent.amount_cents}
-                  currency={intent.currency}
-                  onSuccess={() => setPaid(true)}
-                />
-              </Elements>
-            </SectionCard>
+                  }}
+                >
+                  <CheckoutForm
+                    appointmentId={appointmentId}
+                    amountCents={intent.amount_cents}
+                    currency={intent.currency}
+                    onSuccess={() => setPaid(true)}
+                  />
+                </Elements>
+              </div>
+            </div>
           )}
         </div>
       </div>

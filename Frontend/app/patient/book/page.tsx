@@ -116,6 +116,14 @@ function BookAppointmentPageInner() {
   return (
     <AppLayout role="patient" pageTitle="Book Appointment">
       <PageHeader title="Book Appointment" />
+      <style>{`
+        @media(max-width:640px){
+          .dentist-card-grid{grid-template-columns:auto 1fr!important;gap:12px!important;}
+          .dentist-card-actions{grid-column:1/-1;flex-direction:row!important;min-width:unset!important;}
+          .book-date-row{width:100%;}
+          .book-date-row input[type=date]{flex:1;width:auto!important;}
+        }
+      `}</style>
       <div className="page-body">
         {prefilledScanId && (
           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 20, fontSize: 14 }}>
@@ -137,7 +145,7 @@ function BookAppointmentPageInner() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="book-date-row" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
               Pick a date:
             </label>
@@ -164,7 +172,7 @@ function BookAppointmentPageInner() {
               const dentistSelectedReports = selectedReports[d.id] || [];
               return (
                 <div key={d.id} className="card">
-                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 24, alignItems: "start" }}>
+                  <div className="dentist-card-grid" style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 24, alignItems: "start" }}>
                     <Avatar name={d.full_name} size={56} />
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -235,7 +243,7 @@ function BookAppointmentPageInner() {
                       )}
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 140 }}>
+                    <div className="dentist-card-actions" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 140 }}>
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => handleBook(d)}

@@ -134,6 +134,7 @@ function DiagnosisReportPageInner() {
           </div>
         ) : (
           <>
+            <style>{`@media(max-width:768px){.report-main-grid{grid-template-columns:1fr!important;}}`}</style>
             {/* ── Overall Risk Banner ── */}
             <div style={{
               background: `${riskColour(risk)}0d`,
@@ -226,7 +227,7 @@ function DiagnosisReportPageInner() {
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,300px)", gap: 22 }}>
+            <div className="report-main-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,300px)", gap: 22 }}>
               {/* ── Findings Table ── */}
               <SectionCard title={`Detected Findings (${findings.length})`}>
                 {findings.length === 0 ? (
